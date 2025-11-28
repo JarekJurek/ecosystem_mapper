@@ -1,0 +1,18 @@
+eunis_id_to_lab = {
+    0: 'Surface standing waters',
+    1: 'Surface running waters',
+    2: 'Dry grasslands',
+    3: 'Mesic grasslands',
+    4: 'Seasonally wet and wet grasslands',
+    5: 'Alpine and subalpine grasslands',
+    6: 'Arctic, alpine and subalpine scrub',
+    7: 'Shrub plantations',
+    8: 'Broadleaved deciduous woodland',
+    9: 'Coniferous woodland',
+    10: 'Mixed deciduous and coniferous woodland',
+    11: 'Inland cliffs, rock pavements and outcrops',
+    12: 'Arable land and market gardens',
+    13: 'Cultivated areas of gardens and parks',
+    14: 'Buildings of cities, towns and villages',
+    15: 'Low density buildings',
+    16: 'Transport networks and other constructed hard-surfaced areas'}
