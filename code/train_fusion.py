@@ -90,14 +90,11 @@ def main():
     # Simple scalar config variables
     csv_path = "data/dataset_split.csv"
     image_dir = None
-    image_ext = ".png"
     variable_selection = "all"  # can be list, string, or None
-    batch_size = 32
-    num_workers = 4
-    epochs = 5
+    batch_size = 16
+    num_workers = 6
+    epochs = 30
     lr = 1e-3
-    resnet_name = "resnet18"  # "resnet18" or "resnet50"
-    pretrained = True
     var_hidden = 128
     dropout = 0.2
     num_classes = 17
@@ -106,7 +103,6 @@ def main():
     loaders = get_dataloaders(
         csv_path=csv_path,
         image_dir=image_dir,
-        image_ext=image_ext,
         variable_selection=variable_selection,
         batch_size=batch_size,
         num_workers=num_workers,
@@ -142,9 +138,7 @@ def main():
     plot_training_curves(metrics, curves_path)
     print(f"Saved training curves to {curves_path}")
 
-    cm_tensor, class_names = compute_confusion_matrix(
-        model, loaders["val"], device
-    )
+    cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
     cm_path = os.path.join(out_dir, "confusion_matrix.png")
     plot_confusion_matrix(cm_tensor, class_names, cm_path)
     print(f"Saved confusion matrix to {cm_path}")
