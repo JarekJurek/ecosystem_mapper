@@ -1,17 +1,30 @@
+import os
 import torch
 import torch.nn as nn
 
 from dataset.dataset import get_dataloaders
 from model import FusionNet
+from metrics_plots import (
+    plot_training_curves,
+    compute_confusion_matrix,
+    plot_confusion_matrix,
+    ensure_dir,
+)
 
 
 def train(model, train_loader, val_loader, optimizer, device, loss_fn, epochs: int):
+    """Train loop returning metrics dict for plotting."""
+    metrics = {
+        "train_loss": [],
+        "val_loss": [],
+        "train_acc": [],
+        "val_acc": [],
+    }
     for epoch in range(1, epochs + 1):
         model.train()
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
-        # iterate over training batches
         for batch in train_loader:
             images = batch.get("images")
             variables = batch.get("variables")
@@ -34,11 +47,15 @@ def train(model, train_loader, val_loader, optimizer, device, loss_fn, epochs: i
             total_samples += int(labels.size(0))
         train_loss = total_loss / max(total_samples, 1)
         train_acc = total_correct / max(total_samples, 1)
-
         val_loss, val_acc = evaluate(model, val_loader, device, loss_fn)
+        metrics["train_loss"].append(train_loss)
+        metrics["val_loss"].append(val_loss)
+        metrics["train_acc"].append(train_acc)
+        metrics["val_acc"].append(val_acc)
         print(
             f"Epoch {epoch:02d} | train loss {train_loss:.4f} acc {train_acc:.3f} | val loss {val_loss:.4f} acc {val_acc:.3f}"
         )
+    return metrics
 
 
 def evaluate(model, loader, device, loss_fn):
@@ -111,10 +128,26 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()
 
-    train(model, loaders["train"], loaders["val"], optimizer, device, loss_fn, epochs)
+    metrics = train(
+        model, loaders["train"], loaders["val"], optimizer, device, loss_fn, epochs
+    )
 
     test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
     print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
+
+    # Plotting and confusion matrix generation
+    out_dir = "models"
+    ensure_dir(out_dir)
+    curves_path = os.path.join(out_dir, "training_curves.png")
+    plot_training_curves(metrics, curves_path)
+    print(f"Saved training curves to {curves_path}")
+
+    cm_tensor, class_names = compute_confusion_matrix(
+        model, loaders["val"], device
+    )
+    cm_path = os.path.join(out_dir, "confusion_matrix.png")
+    plot_confusion_matrix(cm_tensor, class_names, cm_path)
+    print(f"Saved confusion matrix to {cm_path}")
 
 
 if __name__ == "__main__":
