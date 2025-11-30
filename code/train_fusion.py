@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from tqdm.auto import tqdm
 
 from dataset.dataset import get_dataloaders
 from model import FusionNet
@@ -12,7 +11,8 @@ def train(model, train_loader, val_loader, optimizer, device, loss_fn, epochs: i
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
-        for batch in tqdm(train_loader, desc=f"train {epoch}", leave=False):
+        # iterate over training batches
+        for batch in train_loader:
             images = batch.get("images")
             variables = batch.get("variables")
             labels = batch.get("labels")
@@ -47,7 +47,7 @@ def evaluate(model, loader, device, loss_fn):
     total_correct = 0
     total_samples = 0
     with torch.no_grad():
-        for batch in tqdm(loader, desc="val", leave=False):
+        for batch in loader:
             images = batch.get("images")
             variables = batch.get("variables")
             labels = batch.get("labels")
