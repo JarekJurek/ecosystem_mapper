@@ -3,6 +3,7 @@ from typing import List, Optional, Sequence, Dict, Any, Union, cast
 
 import pandas as pd
 from PIL import Image
+from pyparsing import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
 
@@ -78,20 +79,27 @@ class EcosystemDataset(Dataset):
                 )
         else:
             # Sequence of columns or group names
-            cols: List[str] = []
-            for item in variable_selection:
-                if item in sweco_variables_dict:
-                    cols.extend(sweco_variables_dict[item])
-                else:
-                    cols.append(item)
-            # deduplicate and keep only present columns
-            dedup = []
-            seen = set()
-            for c in cols:
-                if c in df.columns and c not in seen:
-                    dedup.append(c)
-                    seen.add(c)
-            self.var_cols = dedup
+            # Support special cases like ["all"] and allow mixed group names/columns.
+            seq = list(variable_selection)
+            # If 'all' appears anywhere in the sequence, select all variable columns
+            if any(isinstance(it, str) and it.lower() == "all" for it in seq):
+                self.var_cols = all_var_cols
+            else:
+                cols: List[str] = []
+                for item in seq:
+                    if isinstance(item, str) and item in sweco_variables_dict:
+                        cols.extend(sweco_variables_dict[item])
+                    else:
+                        # treat as a direct column name
+                        cols.append(cast(str, item))
+                # deduplicate and keep only present columns
+                dedup: List[str] = []
+                seen = set()
+                for c in cols:
+                    if c in df.columns and c not in seen:
+                        dedup.append(c)
+                        seen.add(c)
+                self.var_cols = dedup
 
         # Variables-only check
         if not self.load_images:
@@ -236,8 +244,8 @@ def default_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def get_dataloaders(
-    csv_path: str = "data/dataset_split.csv",
-    image_dir: Optional[str] = None,
+    csv_path: Path = Path("data/dataset_split.csv"),
+    image_dir: Optional[Path] = None,
     image_ext: str = ".tif",
     variable_selection: Optional[Union[str, Sequence[str]]] = "all",
     batch_size: int = 32,
@@ -251,11 +259,14 @@ def get_dataloaders(
     Convenience function returning dataloaders for train/val/test splits.
     """
     loaders: Dict[str, DataLoader] = {}
+    # Ensure types align with EcosystemDataset (expects str paths)
+    csv_str = str(csv_path)
+    img_str = str(image_dir) if image_dir is not None else None
     for split in ["train", "val", "test"]:
         ds = EcosystemDataset.from_split(
             subset=split,
-            csv_path=csv_path,
-            image_dir=image_dir,
+            csv_path=csv_str,
+            image_dir=img_str,
             image_ext=image_ext,
             load_images=load_images,
             variable_selection=variable_selection,

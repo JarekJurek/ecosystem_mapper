@@ -1,4 +1,6 @@
 import os
+import argparse
+from pathlib import Path
 import torch
 import torch.nn as nn
 
@@ -87,10 +89,22 @@ def evaluate(model, loader, device, loss_fn):
 
 
 def main():
-    # Simple scalar config variables
-    csv_path = "data/dataset_split.csv"
-    image_dir = None
-    variable_selection = "all"  # can be list, string, or None
+    parser = argparse.ArgumentParser(description="Train Fusion model")
+    parser.add_argument(
+        "--variable-selection",
+        dest="variable_selection",
+        nargs="*",
+        default=["all"],
+        help="Variable selection: 'all', a group key, or multiple keys (e.g., geol edaph)",
+    )
+    args = parser.parse_args()
+
+    data_dir = Path(__file__).parents[1].resolve() / "data"
+    csv_path = data_dir / "dataset_split.csv"
+    image_dir = data_dir / "images"
+    # Pass variable selection as list; dataset now supports ['all'] and group names
+    variable_selection = args.variable_selection
+
     batch_size = 16
     num_workers = 6
     epochs = 30
