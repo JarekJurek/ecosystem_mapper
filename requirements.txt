@@ -1,3 +1,8 @@
 matplotlib
 scikit-image
 numpy
+pandas
+Pillow
+torch
+torchvision
+scikit-learn

@@ -1,0 +1,162 @@
+import os
+import argparse
+from pathlib import Path
+import torch
+import torch.nn as nn
+
+from dataset.dataset import get_dataloaders
+from model import FusionNet
+from metrics_plots import (
+    plot_training_curves,
+    compute_confusion_matrix,
+    plot_confusion_matrix,
+    ensure_dir,
+)
+
+
+def train(model, train_loader, val_loader, optimizer, device, loss_fn, epochs: int):
+    """Train loop returning metrics dict for plotting."""
+    metrics = {
+        "train_loss": [],
+        "val_loss": [],
+        "train_acc": [],
+        "val_acc": [],
+    }
+    for epoch in range(1, epochs + 1):
+        model.train()
+        total_loss = 0.0
+        total_correct = 0
+        total_samples = 0
+        for batch in train_loader:
+            images = batch.get("images")
+            variables = batch.get("variables")
+            labels = batch.get("labels")
+            if labels is None:
+                continue
+            if images is not None:
+                images = images.to(device)
+            if variables is not None:
+                variables = variables.to(device)
+            labels = labels.to(device)
+            logits = model(images, variables)
+            loss = loss_fn(logits, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            total_loss += float(loss.item()) * labels.size(0)
+            preds = logits.argmax(dim=1)
+            total_correct += int((preds == labels).sum().item())
+            total_samples += int(labels.size(0))
+        train_loss = total_loss / max(total_samples, 1)
+        train_acc = total_correct / max(total_samples, 1)
+        val_loss, val_acc = evaluate(model, val_loader, device, loss_fn)
+        metrics["train_loss"].append(train_loss)
+        metrics["val_loss"].append(val_loss)
+        metrics["train_acc"].append(train_acc)
+        metrics["val_acc"].append(val_acc)
+        print(
+            f"Epoch {epoch:02d} | train loss {train_loss:.4f} acc {train_acc:.3f} | val loss {val_loss:.4f} acc {val_acc:.3f}"
+        )
+    return metrics
+
+
+def evaluate(model, loader, device, loss_fn):
+    model.eval()
+    total_loss = 0.0
+    total_correct = 0
+    total_samples = 0
+    with torch.no_grad():
+        for batch in loader:
+            images = batch.get("images")
+            variables = batch.get("variables")
+            labels = batch.get("labels")
+            if labels is None:
+                continue
+            if images is not None:
+                images = images.to(device)
+            if variables is not None:
+                variables = variables.to(device)
+            labels = labels.to(device)
+            logits = model(images, variables)
+            loss = loss_fn(logits, labels)
+            total_loss += float(loss.item()) * labels.size(0)
+            preds = logits.argmax(dim=1)
+            total_correct += int((preds == labels).sum().item())
+            total_samples += int(labels.size(0))
+    avg_loss = total_loss / max(total_samples, 1)
+    acc = total_correct / max(total_samples, 1)
+    return avg_loss, acc
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train Fusion model")
+    parser.add_argument(
+        "--variable-selection",
+        dest="variable_selection",
+        nargs="*",
+        default=["all"],
+        help="Variable selection: 'all', a group key, or multiple keys (e.g., geol edaph)",
+    )
+    args = parser.parse_args()
+
+    data_dir = Path(__file__).parents[1].resolve() / "data"
+    csv_path = data_dir / "dataset_split.csv"
+    image_dir = data_dir / "images"
+    # Pass variable selection as list; dataset now supports ['all'] and group names
+    variable_selection = args.variable_selection
+
+    batch_size = 16
+    num_workers = 6
+    epochs = 30
+    lr = 1e-3
+    var_hidden = 128
+    dropout = 0.2
+    num_classes = 17
+    load_images = True  # set False for variables-only mode
+
+    loaders = get_dataloaders(
+        csv_path=csv_path,
+        image_dir=image_dir,
+        variable_selection=variable_selection,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        load_images=load_images,
+    )
+
+    sample_batch = next(iter(loaders["train"]))
+    var_dim = sample_batch.get("variables")
+    var_input_dim = var_dim.shape[1] if var_dim is not None else None
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = FusionNet(
+        num_classes=num_classes,
+        var_input_dim=var_input_dim,
+        var_hidden_dim=var_hidden,
+        dropout=dropout,
+    ).to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.CrossEntropyLoss()
+
+    metrics = train(
+        model, loaders["train"], loaders["val"], optimizer, device, loss_fn, epochs
+    )
+
+    test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
+    print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
+
+    # Plotting and confusion matrix generation
+    out_dir = "models"
+    ensure_dir(out_dir)
+    curves_path = os.path.join(out_dir, "training_curves.png")
+    plot_training_curves(metrics, curves_path)
+    print(f"Saved training curves to {curves_path}")
+
+    cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
+    cm_path = os.path.join(out_dir, "confusion_matrix.png")
+    plot_confusion_matrix(cm_tensor, class_names, cm_path)
+    print(f"Saved confusion matrix to {cm_path}")
+
+
+if __name__ == "__main__":
+    main()
