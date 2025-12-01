@@ -1,6 +1,6 @@
 #!/bin/bash
 ### --------------- job name ------------------
-#BSUB -J ipeo_model
+#BSUB -J ipeo_all
 
 ### --------------- queue name ----------------
 #BSUB -q gpuv100
@@ -19,8 +19,8 @@
 #BSUB -W 23:59
 
 ### --------------- output and error files ---------------
-#BSUB -o /zhome/a2/c/213547/ecosystem_mapper/bakery/ipeo_model_%J.out
-#BSUB -e /zhome/a2/c/213547/ecosystem_mapper/bakery/ipeo_model_%J.err
+#BSUB -o /zhome/a2/c/213547/ecosystem_mapper/bakery/ipeo_all_%J.out
+#BSUB -e /zhome/a2/c/213547/ecosystem_mapper/bakery/ipeo_all_%J.err
 
 ### --------------- send email notifications -------------
 #BSUB -u s242911@dtu.dk
@@ -29,5 +29,4 @@
 
 ### --------------- Load environment and run Python script ---------------
 source /zhome/a2/c/213547/hypersight/venv/bin/activate
-python3 /zhome/a2/c/213547/ecosystem_mapper/code/train_fusion.py \
-	--epochs 120 \
+python3 /zhome/a2/c/213547/ecosystem_mapper/code/train_fusion.py --out-dir ipeo_all --variable-selection all
