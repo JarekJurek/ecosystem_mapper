@@ -140,6 +140,12 @@ def main():
         default=["all"],
         help="Variable selection: 'all', a group key, or multiple keys (e.g., geol edaph)",
     )
+    parser.add_argument(
+        "--out-dir",
+        dest="out_dir",
+        default="new_exp",
+        help="Output directory for results",
+    )
     args = parser.parse_args()
 
     data_dir = Path(__file__).parents[1].resolve() / "data"
@@ -227,14 +233,14 @@ def main():
     print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
 
     # Plotting and confusion matrix generation
-    out_dir = "results"
-    ensure_dir(out_dir)
-    curves_path = os.path.join(out_dir, "training_curves.png")
+    results_dir = f"results/{args.out_dir}"
+    ensure_dir(results_dir)
+    curves_path = os.path.join(results_dir, "training_curves.png")
     plot_training_curves(metrics, curves_path)
     print(f"Saved training curves to {curves_path}")
 
     cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
-    cm_path = os.path.join(out_dir, "confusion_matrix.png")
+    cm_path = os.path.join(results_dir, "confusion_matrix.png")
     plot_confusion_matrix(cm_tensor, class_names, cm_path)
     print(f"Saved confusion matrix to {cm_path}")
 
