@@ -227,7 +227,7 @@ def main():
     print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
 
     # Plotting and confusion matrix generation
-    out_dir = "models"
+    out_dir = "results"
     ensure_dir(out_dir)
     curves_path = os.path.join(out_dir, "training_curves.png")
     plot_training_curves(metrics, curves_path)
