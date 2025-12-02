@@ -179,6 +179,7 @@ def main():
     sample_batch = next(iter(loaders["train"]))
     var_tensor = sample_batch.get("variables")
     var_input_dim = var_tensor.shape[1] if var_tensor is not None else None
+    print(f"Variables used for this run: {variable_selection}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = FusionNet(
