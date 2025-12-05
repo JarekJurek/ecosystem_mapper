@@ -2,6 +2,7 @@ import torch
 import sys
 from utils import save_checkpoint
 from tqdm import tqdm
+from torch.cuda.amp import GradScaler
 
 def train(
     model,
@@ -22,6 +23,8 @@ def train(
         "train_acc": [],
         "val_acc": [],
     }
+    use_amp = (device.type == "cuda")
+    scaler = GradScaler(enabled=use_amp)
 
     expected_train = len(getattr(train_loader, "dataset", []))
     expected_val = len(getattr(val_loader, "dataset", []))
@@ -30,14 +33,16 @@ def train(
     epochs_without_improve = 0
 
     disable_tqdm = not sys.stdout.isatty()
-
     for epoch in range(1, epochs + 1):
         batch_iter = tqdm(train_loader, desc=f"Epoch {epoch}/{epochs}", leave=False, disable=disable_tqdm)
         model.train()
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
-        for batch in batch_iter:
+        step = 0
+        loader_iter = tqdm(train_loader) if not disable_tqdm else train_loader
+        for batch in loader_iter:
+            step += 1
             images = batch.get("images")
             variables = batch.get("variables")
             labels = batch.get("labels")
@@ -49,27 +54,37 @@ def train(
                 variables = variables.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
             optimizer.zero_grad()
-            logits = model(images, variables)
-            loss = loss_fn(logits, labels)
-            loss.backward()
+            with torch.amp.autocast(device_type="cuda", enabled=use_amp):
+                logits = model(images, variables)
+                loss = loss_fn(logits, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
 
             if grad_clip is not None and grad_clip > 0.0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
 
             optimizer.step()
+            if disable_tqdm:
+                if step % 50 == 0:
+                    loss_value = float(loss.detach().cpu())
+                    print(f"Epoch {epoch} Step {step}: {loss_value:.4f}", flush=True)
 
-            batch_size = labels.size(0)
-            total_loss += float(loss.item()) * batch_size
-            preds = logits.argmax(dim=1)
-            total_correct += int((preds == labels).sum().item())
-            total_samples += int(batch_size)
+            else:
+                batch_size = labels.size(0)
+                total_loss += float(loss.item()) * batch_size
+                preds = logits.argmax(dim=1)
+                total_correct += int((preds == labels).sum().item())
+                total_samples += int(batch_size)
 
-            current_loss = total_loss / max(total_samples, 1)
-            current_acc = total_correct / max(total_samples, 1)
-            batch_iter.set_postfix({
-                "loss": f"{current_loss:.4f}",
-                "acc": f"{current_acc:.3f}"
-            })
+                current_loss = total_loss / max(total_samples, 1)
+                current_acc = total_correct / max(total_samples, 1)
+                batch_iter.set_postfix({
+                    "loss": f"{current_loss:.4f}",
+                    "acc": f"{current_acc:.3f}"
+                })
+
 
         train_loss = total_loss / max(total_samples, 1)
         train_acc = total_correct / max(total_samples, 1)
