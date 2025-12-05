@@ -2,7 +2,6 @@ import os
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
-
 from metrics_plots import (
     plot_training_curves,
     compute_confusion_matrix,
@@ -11,7 +10,7 @@ from metrics_plots import (
 from model import FusionNet
 from variables_model import VariablesModel
 from dataset.dataset import get_dataloaders
-from utils import get_best_device, save_checkpoint, load_checkpoint
+from utils import get_best_device, save_checkpoint, load_checkpoint, track_experiment
 from config import config as cfg
 from train_fusion import train, evaluate
 
@@ -77,14 +76,16 @@ def run_experiment(build_loaders_fn, build_model_and_optimizer_fn, exp_name: str
         )
         return
 
-    test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
+    test_loss, test_acc = evaluate(model, loaders["val"], device, loss_fn)
     print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
+
+    track_experiment(cfg.out_dir, test_loss, test_acc, metrics)
 
     curves_path = os.path.join(cfg.results_dir, f"training_curves_{exp_name}.png")
     plot_training_curves(metrics, curves_path)
     print(f"Saved training curves to {curves_path}")
 
-    cm_tensor, class_names = compute_confusion_matrix(model, loaders["test"], device)
+    cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
     cm_path = os.path.join(cfg.results_dir, f"confusion_matrix_{exp_name}.png")
     plot_confusion_matrix(cm_tensor, class_names, cm_path)
     print(f"Saved confusion matrix to {cm_path}")

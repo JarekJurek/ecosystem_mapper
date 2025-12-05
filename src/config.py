@@ -44,7 +44,6 @@ def load_config():
         default=True,
     )
     parser.add("--grad_clip", type=float, default=1.0)
-
     args = parser.parse_args()
 
     if args.config is not None:
@@ -65,7 +64,8 @@ def load_config():
     args.results_dir = f"results/{args.out_dir}"
     args.checkpoints_dir = f"checkpoints/{args.out_dir}"
     ensure_dir(args.results_dir)
-    ensure_dir(args.checkpoints_dir)
+    if args.save_checkpoint:
+        ensure_dir(args.checkpoints_dir)
     return args
 
 def ensure_dir(path: str) -> None:

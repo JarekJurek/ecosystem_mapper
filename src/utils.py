@@ -3,6 +3,7 @@ import torchvision.utils as vutils
 from config import config as cfg
 import torch
 import os
+import csv
 
 def show_images_from_loader(data_loader, num_images=5):
     """
@@ -87,3 +88,30 @@ def load_checkpoint(model, optimizer, ckpt_path, device):
         print("[CHECKPOINT] Loaded model & optimizer.")
     else:
         print("[CHECKPOINT] Loaded model only (no optimizer state).")
+
+def append_experiment_to_csv(csv_path, row_dict):
+    """
+    Append a row (dict) to a global CSV file.
+    If file doesn't exist, write header first.
+    """
+
+    file_exists = os.path.isfile(csv_path)
+
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=row_dict.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row_dict)
+
+def track_experiment(exp_name, test_loss, test_acc, metrics):
+    best_val_loss = min(metrics.get("val_loss", [])) if metrics.get("val_loss") else None
+    best_val_acc  = max(metrics.get("val_acc", []))  if metrics.get("val_acc")  else None
+    csv_path = os.path.join("results", "all_experiments.csv")
+
+    append_experiment_to_csv(csv_path, {
+        "exp_name":     exp_name,
+        "test_loss":    f"{test_loss:.4f}",
+        "test_acc":     f"{test_acc:.4f}",
+        "best_val_loss": best_val_loss,
+        "best_val_acc":  best_val_acc,
+    })

@@ -1,11 +1,9 @@
-variable_selection:
-  - geol
-  - edaph
+variable_selection: "all"
 data_dir: "../../data"
 out_dir: "exp_geol_edaph"
-batch_size: 64
-num_workers: 4
-epochs: 2
+batch_size: 8
+num_workers: 0
+epochs: 30
 lr: 0.0005
 weight_decay: 0.0005
 label_smoothing: 0.1
@@ -15,3 +13,6 @@ dropout: 0.3
 num_classes: 17
 load_images: true
 grad_clip: 1.0
+load_checkpoint: false
+save_checkpoint: false
+use_batchnorm: true
