@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 
 from dataset.dataset import get_dataloaders
+from utils import get_best_device, save_checkpoint
+from tqdm import tqdm
 from model import FusionNet
 from metrics_plots import (
     plot_training_curves,
@@ -42,11 +44,12 @@ def train(
     epochs_without_improve = 0
 
     for epoch in range(1, epochs + 1):
+        batch_iter = tqdm(train_loader, desc=f"Epoch {epoch}/{epochs}", leave=False)
         model.train()
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
-        for batch in train_loader:
+        for batch in batch_iter:
             images = batch.get("images")
             variables = batch.get("variables")
             labels = batch.get("labels")
@@ -73,6 +76,13 @@ def train(
             total_correct += int((preds == labels).sum().item())
             total_samples += int(batch_size)
 
+            current_loss = total_loss / max(total_samples, 1)
+            current_acc = total_correct / max(total_samples, 1)
+            batch_iter.set_postfix({
+                "loss": f"{current_loss:.4f}",
+                "acc": f"{current_acc:.3f}"
+            })
+
         train_loss = total_loss / max(total_samples, 1)
         train_acc = total_correct / max(total_samples, 1)
         val_loss, val_acc = evaluate(model, val_loader, device, loss_fn)
@@ -88,6 +98,13 @@ def train(
         if patience and val_loss < best_val_loss - 1e-6:
             best_val_loss = val_loss
             epochs_without_improve = 0
+            save_checkpoint(
+                   model,
+                   optimizer,
+                   epoch,
+                   path="best_checkpoint.pth",
+                   extra={"val_loss": val_loss, "val_acc": val_acc},
+               )
         elif patience:
             epochs_without_improve += 1
             if epochs_without_improve >= patience:
