@@ -1,4 +1,3 @@
-import os
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -88,7 +87,3 @@ def plot_confusion_matrix(cm: torch.Tensor, class_names: List[str], out_path: st
     plt.tight_layout()
     plt.savefig(out_path, dpi=150)
     plt.close()
-
-
-def ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)

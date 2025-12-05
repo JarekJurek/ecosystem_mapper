@@ -2,8 +2,8 @@ import unittest
 import pandas as pd
 import torch
 
-from code.dataset.dataset import EcosystemDataset, get_dataloaders, default_collate
-from code.dataset.sweco_group_of_variables import sweco_variables_dict
+from src.dataset.dataset import EcosystemDataset, get_dataloaders, default_collate
+from src.dataset.sweco_group_of_variables import sweco_variables_dict
 
 CSV_PATH = "data/dataset_split.csv"
 
