@@ -3,31 +3,44 @@ import argparse
 from pathlib import Path
 import torch
 import torch.nn as nn
+from typing import Optional, Tuple
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import uniform
 
 from dataset.dataset import get_dataloaders
-from model import FusionNet
 from metrics_plots import (
     plot_training_curves,
     compute_confusion_matrix,
     plot_confusion_matrix,
+    plot_permutation_importance,
     ensure_dir,
 )
-
-# model_rf.py
-from typing import Optional, Dict, Any, Tuple
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-
 
 class RandomForestEcosystem(nn.Module):
     """
     Wrapper around sklearn RandomForestClassifier so it can be used
     with the same dataloaders and evaluation utilities as FusionNet.
 
-    Key points:
-    - Uses ONLY the tabular variables (no images)
-    - .fit_from_loader(train_loader) trains the RF on all train samples
-    - forward(images, variables) returns logits as a torch.Tensor (B, num_classes)
+    Parameters
+    ----------
+    num_classes : int
+        Number of ecosystem classes (default: 17).
+    var_input_dim : int or None
+        Dimensionality of the variable vector. Used only for sanity checks.
+    n_estimators : int
+        Number of trees in the forest.
+    max_depth : int or None
+        Maximum depth of each tree.
+    random_state : int
+        Random seed for reproducibility.
+    n_jobs : int
+        Number of parallel jobs for training/prediction.
+    class_weight : str or dict or None
+        Class weights (e.g. 'balanced_subsample') to handle imbalance.
     """
 
     def __init__(
@@ -39,28 +52,16 @@ class RandomForestEcosystem(nn.Module):
         random_state: int = 42,
         n_jobs: int = -1,
         class_weight: str = "balanced_subsample",
+        min_samples_split: Optional[int] = 5,
+        min_samples_leaf: Optional[int] = 2,
+        max_features: Optional[int] = 'log2',
+        bootstrap: Optional[bool] = False
     ) -> None:
-        """
-        Parameters
-        ----------
-        num_classes : int
-            Number of ecosystem classes (default: 17).
-        var_input_dim : int or None
-            Dimensionality of the variable vector. Used only for sanity checks.
-        n_estimators : int
-            Number of trees in the forest.
-        max_depth : int or None
-            Maximum depth of each tree.
-        random_state : int
-            Random seed for reproducibility.
-        n_jobs : int
-            Number of parallel jobs for training/prediction.
-        class_weight : str or dict or None
-            Class weights (e.g. 'balanced_subsample') to handle imbalance.
-        """
+        
         super().__init__()
         self.num_classes = num_classes
         self.var_input_dim = var_input_dim
+        self.random_state = random_state
 
         self.rf = RandomForestClassifier(
             n_estimators=n_estimators,
@@ -68,6 +69,10 @@ class RandomForestEcosystem(nn.Module):
             random_state=random_state,
             n_jobs=n_jobs,
             class_weight=class_weight,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            max_features=max_features,
+            bootstrap=bootstrap
         )
 
         self._is_trained = False
@@ -126,6 +131,81 @@ class RandomForestEcosystem(nn.Module):
         print(f"Fitting RandomForest on X_train={X_train.shape}, y_train={y_train.shape}")
         self.rf.fit(X_train, y_train)
         self._is_trained = True
+
+    def fit_optimized(self, train_loader) -> None:
+        """
+        Performs hyperparameter search for the RandomForest using RandomizedSearchCV.
+        """
+        X_train, y_train = self._collect_xy_from_loader(train_loader)
+        if X_train.size == 0:
+            raise ValueError("No variables found in train_loader to fit RandomForest.")
+
+        if self.var_input_dim is not None and X_train.shape[1] != self.var_input_dim:
+            print(
+                f"[Warning] RF: inferred var_input_dim={X_train.shape[1]}, "
+                f"but var_input_dim={self.var_input_dim} was passed."
+            )
+
+        print(
+            f"Finding optimized parameters for RandomForest on "
+            f"X_train={X_train.shape}, y_train={y_train.shape}"
+        )
+
+        param_distributions = {
+            "n_estimators": [200, 300, 500, 800],
+            "max_depth": [10, 20, 30, None],
+            "min_samples_split": [2, 5, 10],
+            "min_samples_leaf": [1, 2, 4],
+            "max_features": ["sqrt", "log2", None],
+            "bootstrap": [True, False],
+        }
+
+        search = RandomizedSearchCV(
+            estimator=self.rf,
+            param_distributions=param_distributions,
+            n_iter=20,               # number of models to evaluate
+            cv=3,                    # 3-fold cross-validation
+            random_state=self.random_state,
+            n_jobs=-1,
+            verbose=1
+        )
+
+        search.fit(X_train, y_train)
+        print(f"Best parameters: {search.best_params_}")
+
+        # Apply the best parameters to the RF
+        self.rf = search.best_estimator_
+        self._is_trained = True
+
+    def permutation_importance(self, loader, n_repeats =30) -> None:
+        """
+        Computes features permutation importance for the RandomForest on all data from train_loader.
+
+        """
+        X, y = self._collect_xy_from_loader(loader)
+        if X.size == 0:
+            raise ValueError("No variables found in train_loader to fit RandomForest.")
+
+        if self.var_input_dim is not None and X.shape[1] != self.var_input_dim:
+            print(
+                f"[Warning] RF: inferred var_input_dim={X.shape[1]}, "
+                f"but var_input_dim={self.var_input_dim} was passed."
+            )
+
+        print(f"Computing the features permutation importance for the RandomForest on X_test={X.shape}, y_test={y.shape}")
+        var_names = loader.dataset.var_cols  # list of column names (length = X.shape[1])
+        perm_imp = permutation_importance(self.rf, X, y,
+                                        n_repeats=n_repeats,
+                                        random_state=self.random_state)
+
+        sorted_idx = perm_imp.importances_mean.argsort()
+
+        importances = pd.DataFrame(
+            perm_imp.importances[sorted_idx].T,
+            columns=[var_names[i] for i in sorted_idx]
+        )
+
+        return importances
 
     def forward(
         self,
@@ -249,12 +329,23 @@ def main():
     model = RandomForestEcosystem(
         num_classes=num_classes,
         var_input_dim=var_input_dim,   # number of SWECO vars used
-        n_estimators=300,
-        max_depth=15,
+        n_estimators = 300,
+        min_samples_split = 5,
+        min_samples_leaf = 2,
+        max_features = 'log2',
+        max_depth = 20,
+        bootstrap = False
     )
-
+    
     # ---- Train RF on train loader ----
     model.fit_from_loader(loaders["train"])
+
+    # ---- Find best parameters with RandomizedSearchCV and train RF on train loader ----
+    optimize_params = False
+    if (optimize_params) :
+        model.fit_optimized(loaders["train"])
+
+    # Best parameters : {'n_estimators': 300, 'min_samples_split': 5, 'min_samples_leaf': 2, 'max_features': 'log2', 'max_depth': 20, 'bootstrap': False}
 
     # ---- Evaluate on train / val / test ----
     loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
@@ -289,6 +380,10 @@ def main():
     plot_confusion_matrix(cm_tensor, class_names, cm_path)
     print(f"Saved confusion matrix to {cm_path}")
 
+    # ---- Permutation importance computation and plotting ----
+    importances = model.permutation_importance(loaders["test"], n_repeats=30)
+
+    plot_permutation_importance(importances, results_dir)
 
 if __name__ == "__main__":
     main()
