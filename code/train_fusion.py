@@ -213,6 +213,17 @@ def main():
         weight_decay=weight_decay,
     )
 
+    ckpt_path = "./checkpoints/best_checkpoint.pth"
+    if os.path.exists(ckpt_path):
+        print(f"[CHECKPOINT] Found {ckpt_path}, loading...")
+        ckpt = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(ckpt["model_state"])
+        optimizer.load_state_dict(ckpt["optimizer_state"])
+        print(f"[CHECKPOINT] Loaded model & optimizer from {ckpt_path}")
+    else:
+        print("[CHECKPOINT] No existing checkpoint found, training from scratch.")
+
+
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
     loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
