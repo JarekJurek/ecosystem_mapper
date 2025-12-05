@@ -56,7 +56,7 @@ def train(
             if labels is None:
                 continue
             if images is not None:
-                images = images.to(device)
+                images = images.to(device, non_blocking=True)
             if variables is not None:
                 variables = variables.to(device)
             labels = labels.to(device)
@@ -167,13 +167,13 @@ def main():
 
     data_dir = Path(__file__).parents[1].resolve() / "data"
     csv_path = data_dir / "dataset_split.csv"
-    image_dir = data_dir / "images"
+    image_dir = data_dir / "preprocessed_png_256"
     variable_selection = args.variable_selection
 
     ### Hyperparams ###
     batch_size = 32
-    num_workers = 6
-    epochs = 30
+    num_workers = 1
+    epochs = 20
     lr = 1e-3
     weight_decay = 5e-4
     label_smoothing = 0.10
