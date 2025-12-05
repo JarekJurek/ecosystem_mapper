@@ -9,6 +9,7 @@ from metrics_plots import (
     plot_confusion_matrix,
 )
 from model import FusionNet
+from variables_model import VariablesModel
 from dataset.dataset import get_dataloaders
 from utils import get_best_device, save_checkpoint, load_checkpoint
 from config import config as cfg
@@ -173,3 +174,43 @@ def efficientnet_experiment():
         return model, optimizer
 
     run_experiment(build_loaders, build_model_and_optimizer, exp_name="efficientnet")
+
+
+def mlp_experiment():
+    """
+    Variables-only MLP experiment (no images).
+    """
+
+    def build_loaders():
+        loaders = get_dataloaders(
+            image_ext=".png",
+            csv_path=cfg.csv_path,
+            image_dir=cfg.image_dir,
+            variable_selection=cfg.variable_selection,
+            batch_size=cfg.batch_size,
+            num_workers=cfg.num_workers,
+            load_images=False,
+        )
+        return loaders
+
+    def build_model_and_optimizer(device, var_input_dim):
+        model = VariablesModel(
+            var_input_dim,
+            cfg.var_hidden,
+            cfg.num_classes,
+            cfg.dropout,
+            cfg.use_batchnorm
+        ).to(device)
+
+        head_params = [p for _, p in model.named_parameters()]
+
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": head_params, "lr": cfg.lr},
+            ],
+            weight_decay=cfg.weight_decay,
+        )
+
+        return model, optimizer
+
+    run_experiment(build_loaders, build_model_and_optimizer, exp_name="mlp")

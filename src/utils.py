@@ -45,6 +45,9 @@ def get_best_device() -> torch.device:
 
 def save_checkpoint(model, optimizer, epoch, name="checkpoint.pth", extra=None):
     """Save model/optimizer state safely."""
+    if not cfg.save_checkpoint:
+        return
+
     checkpoint = {
         "epoch": epoch,
         "model_state": model.state_dict(),
@@ -68,6 +71,8 @@ def load_checkpoint(model, optimizer, ckpt_path, device):
         Full path to checkpoint file.
     device : str or torch.device
     """
+    if not cfg.load_checkpoint:
+        return
     if not os.path.exists(ckpt_path):
         print(f"[CHECKPOINT] No checkpoint found at {ckpt_path}.")
         return

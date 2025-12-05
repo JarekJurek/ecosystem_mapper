@@ -18,6 +18,9 @@ def load_config():
     parser.add("--data_dir", type=str, default="data")
     parser.add("--csv_path", type=str, default=None)
     parser.add("--image_dir", type=str, default=None)
+    parser.add("--load_checkpoint",type=lambda x: str(x).lower() in {"1", "true", "yes", "y"}, default=True)
+    parser.add("--save_checkpoint",type=lambda x: str(x).lower() in {"1", "true", "yes", "y"}, default=True)
+    parser.add("--use_batchnorm",type=lambda x: str(x).lower() in {"1", "true", "yes", "y"}, default=True)
     parser.add(
         "--variable_selection",
         action="append",
