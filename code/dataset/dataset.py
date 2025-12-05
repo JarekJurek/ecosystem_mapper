@@ -279,5 +279,7 @@ def get_dataloaders(
             shuffle=(split == "train"),
             num_workers=num_workers,
             collate_fn=collate_fn,
+            persistent_workers=True if num_workers > 0 else None,
+            prefetch_factor=2 if num_workers > 0 else None,
         )
     return loaders
