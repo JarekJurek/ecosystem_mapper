@@ -1,4 +1,5 @@
 import torch
+import sys
 from utils import save_checkpoint
 from tqdm import tqdm
 
@@ -28,8 +29,10 @@ def train(
     best_val_loss = float("inf")
     epochs_without_improve = 0
 
+    disable_tqdm = not sys.stdout.isatty()
+
     for epoch in range(1, epochs + 1):
-        batch_iter = tqdm(train_loader, desc=f"Epoch {epoch}/{epochs}", leave=False)
+        batch_iter = tqdm(train_loader, desc=f"Epoch {epoch}/{epochs}", leave=False, disable=disable_tqdm)
         model.train()
         total_loss = 0.0
         total_correct = 0

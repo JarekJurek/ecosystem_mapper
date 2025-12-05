@@ -1,0 +1,13 @@
+#!/bin/bash -l
+#SBATCH --account env540
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --time=00:03:00
+
+cd "$SLURM_SUBMIT_DIR"
+module load gcc python
+source ~/ecosystem_mapper/venv/bin/activate
+python3 src/run_many_configs.py

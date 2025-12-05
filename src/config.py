@@ -1,6 +1,7 @@
 from pathlib import Path
 import configargparse
 import os
+from typing import Optional
 
 def load_config():
     parser = configargparse.ArgParser(
@@ -51,7 +52,7 @@ def load_config():
     else:
         config_dir = Path(__file__).parents[1].resolve()
 
-    def resolve_path(p: str | None, fallback: Path = None) -> Path:
+    def resolve_path(p: Optional[str], fallback: Path = None) -> Path:
         """Resolve a path relative to config file directory if not absolute."""
         if p is None:
             return fallback

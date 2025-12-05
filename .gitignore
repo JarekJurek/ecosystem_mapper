@@ -4,6 +4,8 @@ bakery/
 models/
 checkpoints/
 
+*.out
+
 pyrightconfig.json
 
 # Byte-compiled / optimized / DLL files
