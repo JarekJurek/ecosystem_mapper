@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import torchvision.utils as vutils
+from config import config as cfg
 import torch
+import os
 
 def show_images_from_loader(data_loader, num_images=5):
     """
@@ -41,7 +43,7 @@ def get_best_device() -> torch.device:
     print("Using CPU (no GPU backend available)")
     return torch.device("cpu")
 
-def save_checkpoint(model, optimizer, epoch, path="./checkpoints/checkpoint.pth", extra=None):
+def save_checkpoint(model, optimizer, epoch, name="checkpoint.pth", extra=None):
     """Save model/optimizer state safely."""
     checkpoint = {
         "epoch": epoch,
@@ -51,5 +53,5 @@ def save_checkpoint(model, optimizer, epoch, path="./checkpoints/checkpoint.pth"
     if extra is not None:
         checkpoint["extra"] = extra
 
-    torch.save(checkpoint, path)
-    print(f"[CHECKPOINT] Saved checkpoint to {path}")
+    torch.save(checkpoint, os.path.join(cfg.checkpoints_dir, name))
+    print(f"[CHECKPOINT] Saved checkpoint {name}")
