@@ -55,3 +55,30 @@ def save_checkpoint(model, optimizer, epoch, name="checkpoint.pth", extra=None):
 
     torch.save(checkpoint, os.path.join(cfg.checkpoints_dir, name))
     print(f"[CHECKPOINT] Saved checkpoint {name}")
+
+def load_checkpoint(model, optimizer, ckpt_path, device):
+    """
+    Load a checkpoint if it exists.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+    optimizer : torch.optim.Optimizer
+    ckpt_path : str
+        Full path to checkpoint file.
+    device : str or torch.device
+    """
+    if not os.path.exists(ckpt_path):
+        print(f"[CHECKPOINT] No checkpoint found at {ckpt_path}.")
+        return
+
+    print(f"[CHECKPOINT] Loading checkpoint from {ckpt_path}...")
+    ckpt = torch.load(ckpt_path, map_location=device)
+
+    model.load_state_dict(ckpt.get("model_state", {}))
+
+    if "optimizer_state" in ckpt and optimizer is not None:
+        optimizer.load_state_dict(ckpt["optimizer_state"])
+        print("[CHECKPOINT] Loaded model & optimizer.")
+    else:
+        print("[CHECKPOINT] Loaded model only (no optimizer state).")
