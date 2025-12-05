@@ -4,15 +4,16 @@ from pathlib import Path
 
 BASE_CONFIG = "src/configs/default.yaml"
 
-LR_LIST = [1e-4, 3e-4, 1e-3]
-BATCH_SIZES = [32, 64]
-DROPOUTS = [0.2, 0.5]
-NUM_HIDDEN= [64, 128, 256]
-BATCH_NORMS = [True, False]
+LR_LIST = [0.003, 0.0005, 0.0008, 0.002, 0.005]
+BATCH_SIZES = [16, 128, 256]
+DROPOUTS = [0.0, 0.1, 0.15, 0.25, 0.3]
+NUM_HIDDEN = [384, 512, 768, 1024]
+WEIGTH_DECAY = [0, 1e-4, 5e-5, 1e-5]
+BATCH_NORMS = [True]
 
 def main():
-    for lr, batch_size, dropout, var_hidden, use_batchnorm in itertools.product(LR_LIST, BATCH_SIZES, DROPOUTS, NUM_HIDDEN, BATCH_NORMS):
-        exp_name = f"mlp_lr{lr}_bs{batch_size}_do{dropout}_vh{var_hidden}_bn{use_batchnorm}".replace(".", "p")
+    for lr, batch_size, dropout, var_hidden, use_batchnorm, weight_decay in itertools.product(LR_LIST, BATCH_SIZES, DROPOUTS, NUM_HIDDEN, BATCH_NORMS, WEIGTH_DECAY):
+        exp_name = f"mlp_lr{lr}_bs{batch_size}_do{dropout}_vh{var_hidden}_bn{use_batchnorm}_wd{weight_decay}".replace(".", "p")
 
         print(f"\n=== Running {exp_name} ===\n")
 
@@ -24,7 +25,8 @@ def main():
             "--dropout", str(dropout),
             "--out_dir", exp_name,
             "--var_hidden", str(var_hidden),
-            "--use_batchnorm", str(use_batchnorm).lower()
+            "--use_batchnorm", str(use_batchnorm).lower(),
+            "--weight_decay", str(weight_decay)
         ]
         subprocess.run(cmd, check=True)
 
