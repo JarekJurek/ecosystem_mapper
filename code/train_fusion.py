@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import torch
 import torch.nn as nn
-
+import torchvision.transforms as T
 from dataset.dataset import get_dataloaders
 from utils import get_best_device, save_checkpoint
 from tqdm import tqdm
@@ -14,7 +14,6 @@ from metrics_plots import (
     plot_confusion_matrix,
     ensure_dir,
 )
-
 
 def train(
     model,
@@ -39,7 +38,6 @@ def train(
     expected_train = len(getattr(train_loader, "dataset", []))
     expected_val = len(getattr(val_loader, "dataset", []))
     print(f"Dataset sizes | train: {expected_train} | val: {expected_val}")
-        
     best_val_loss = float("inf")
     epochs_without_improve = 0
 
@@ -58,8 +56,8 @@ def train(
             if images is not None:
                 images = images.to(device, non_blocking=True)
             if variables is not None:
-                variables = variables.to(device)
-            labels = labels.to(device)
+                variables = variables.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
             optimizer.zero_grad()
             logits = model(images, variables)
             loss = loss_fn(logits, labels)
@@ -184,21 +182,57 @@ def main():
     load_images = True
     grad_clip = 1.0
 
+    # https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.efficientnet_b0.html
+    eff_mean=[0.485, 0.456, 0.406]
+    eff_std = [0.229, 0.224, 0.225]
+    img_size = 220
+
+    eval_transform = T.Compose(
+        [
+            T.Resize((img_size, img_size)),
+            T.ToTensor(),
+            T.Normalize(mean=eff_mean, std=eff_std),
+        ]
+    )
+
+   # Trainings augmentations
+    train_transform = T.Compose(
+        [
+            T.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+            T.RandomHorizontalFlip(),
+            T.RandomVerticalFlip(),
+            T.RandomRotation(degrees=90),
+            T.ColorJitter(
+                brightness=0.2,
+                contrast=0.2,
+                saturation=0.2,
+                hue=0.05,
+            ),
+            T.ToTensor(),
+            T.Normalize(mean=eff_mean, std=eff_std),
+        ]
+    )
+
+
     loaders = get_dataloaders(
+        image_ext=".png",
         csv_path=csv_path,
         image_dir=image_dir,
         variable_selection=variable_selection,
         batch_size=batch_size,
         num_workers=num_workers,
         load_images=load_images,
+        train_image_transform=train_transform,
+        eval_image_transform=eval_transform,
     )
 
     sample_batch = next(iter(loaders["train"]))
+
     var_tensor = sample_batch.get("variables")
     var_input_dim = var_tensor.shape[1] if var_tensor is not None else None
     print(f"Variables used for this run: {variable_selection}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_best_device()
     model = FusionNet(
         num_classes=num_classes,
         var_input_dim=var_input_dim,
@@ -208,23 +242,23 @@ def main():
 
     ### Backbone partial fine-tuning ###
     for name, p in model.backbone.named_parameters():
-        if "features.6" in name or "features.7" in name:
+        if "features.5" in name or "features.6" in name or "features.7" in name:
             p.requires_grad = True
         else:
             p.requires_grad = False
 
     backbone_params = [
-        p
-        for n, p in model.named_parameters()
+        p for n, p in model.named_parameters()
         if n.startswith("backbone") and p.requires_grad
     ]
     head_params = [
-        p for n, p in model.named_parameters() if not n.startswith("backbone")
+        p for n, p in model.named_parameters()
+        if not n.startswith("backbone")
     ]
 
     optimizer = torch.optim.AdamW(
         [
-            {"params": backbone_params, "lr": lr * 0.1},
+            {"params": backbone_params, "lr": lr * 0.05},
             {"params": head_params, "lr": lr},
         ],
         weight_decay=weight_decay,
@@ -244,19 +278,24 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
     loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    try:
+        metrics = train(
+            model,
+            loaders["train"],
+            loaders["val"],
+            optimizer,
+            device,
+            loss_fn,
+            epochs,
+            scheduler=scheduler,
+            patience=early_stopping_patience,
+            grad_clip=grad_clip,
+        )
+    except KeyboardInterrupt:
+        print("\n[INTERRUPTED] Training stopped by user. Saving checkpoint...")
+        save_checkpoint(model, optimizer, epoch="interrupted", path="checkpoint_interrupt.pth")
+        return
 
-    metrics = train(
-        model,
-        loaders["train"],
-        loaders["val"],
-        optimizer,
-        device,
-        loss_fn,
-        epochs,
-        scheduler=scheduler,
-        patience=early_stopping_patience,
-        grad_clip=grad_clip,
-    )
 
     test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
     print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")

@@ -1,3 +1,45 @@
+import matplotlib.pyplot as plt
+import torchvision.utils as vutils
+import torch
+
+def show_images_from_loader(data_loader, num_images=5):
+    """
+    Display images from a given DataLoader.
+
+    Args:
+    - data_loader: The DataLoader to fetch images from.
+    - num_images: The number of images to display.
+    """
+    for i, batch in enumerate(data_loader):
+        images = batch['images']
+        if images is None:
+            print("No images found in this batch.")
+            continue
+        labels = batch['label_names']
+
+        plt.figure(figsize=(15, 5))
+
+        for j in range(min(num_images, images.size(0))):
+            plt.subplot(1, num_images, j + 1)
+            plt.imshow(vutils.make_grid(images[j:j+1], nrow=1).permute(1, 2, 0).numpy())
+            plt.title(f'Label: {labels[j]}')
+            plt.axis('off')
+
+        plt.show()
+        if i >= 0:
+            break
+
+def get_best_device() -> torch.device:
+    if torch.cuda.is_available():
+        print("Using CUDA GPU")
+        return torch.device("cuda")
+
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        print("Using Apple MPS GPU (Metal Performance Shaders)")
+        return torch.device("mps")
+
+    print("Using CPU (no GPU backend available)")
+    return torch.device("cpu")
 
 def save_checkpoint(model, optimizer, epoch, path="./checkpoints/checkpoint.pth", extra=None):
     """Save model/optimizer state safely."""
