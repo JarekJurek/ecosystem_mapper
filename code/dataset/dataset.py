@@ -3,7 +3,7 @@ from typing import List, Optional, Sequence, Dict, Any, Union, cast
 
 import pandas as pd
 from PIL import Image
-from pyparsing import Path
+from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
 
