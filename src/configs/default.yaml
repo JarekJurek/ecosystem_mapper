@@ -1,15 +1,15 @@
 variable_selection:
   - geol
   - edaph
-data_dir: "../data"
+data_dir: "../../data"
 out_dir: "exp_geol_edaph"
 batch_size: 64
 num_workers: 4
-epochs: 1
+epochs: 2
 lr: 0.0005
 weight_decay: 0.0005
 label_smoothing: 0.1
-early_stopping_pati​ence: 8
+early_stopping_patience: 8
 var_hidden: 256
 dropout: 0.3
 num_classes: 17

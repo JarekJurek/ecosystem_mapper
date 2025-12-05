@@ -2,40 +2,45 @@ from pathlib import Path
 import configargparse
 import os
 
-
 def load_config():
     parser = configargparse.ArgParser(
         description="Train Fusion model",
-        default_config_files=["configs/default.yaml"],
+        config_file_parser_class=configargparse.YAMLConfigFileParser
     )
 
     parser.add(
         "-c", "--config",
         is_config_file=True,
+        default="src/configs/default.yaml",
         help="Path to config file (YAML/INI).",
     )
 
-    parser.add("--data-dir", type=str, default="data")
-    parser.add("--csv-path", type=str, default=None)
-    parser.add("--image-dir", type=str, default=None)
-    parser.add("--variable-selection", nargs="*", default=["all"])
-    parser.add("--out-dir", default="new_exp")
-    parser.add("--batch-size", type=int, default=32)
-    parser.add("--num-workers", type=int, default=1)
+    parser.add("--data_dir", type=str, default="data")
+    parser.add("--csv_path", type=str, default=None)
+    parser.add("--image_dir", type=str, default=None)
+    parser.add(
+        "--variable_selection",
+        action="append",
+        default=[],
+        help="Variables to select",
+    )
+    parser.add("--out_dir", default="new_exp")
+    parser.add("--batch_size", type=int, default=32)
+    parser.add("--num_workers", type=int, default=1)
     parser.add("--epochs", type=int, default=20)
     parser.add("--lr", type=float, default=1e-3)
-    parser.add("--weight-decay", type=float, default=5e-4)
-    parser.add("--label-smoothing", type=float, default=0.10)
-    parser.add("--early-stopping-patience", type=int, default=10)
-    parser.add("--var-hidden", type=int, default=256)
+    parser.add("--weight_decay", type=float, default=5e-4)
+    parser.add("--label_smoothing", type=float, default=0.10)
+    parser.add("--early_stopping_patience", type=int, default=10)
+    parser.add("--var_hidden", type=int, default=256)
     parser.add("--dropout", type=float, default=0.3)
-    parser.add("--num-classes", type=int, default=17)
+    parser.add("--num_classes", type=int, default=17)
     parser.add(
-        "--load-images",
+        "--load_images",
         type=lambda x: str(x).lower() in {"1", "true", "yes", "y"},
         default=True,
     )
-    parser.add("--grad-clip", type=float, default=1.0)
+    parser.add("--grad_clip", type=float, default=1.0)
 
     args = parser.parse_args()
 

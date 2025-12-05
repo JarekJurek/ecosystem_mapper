@@ -1,4 +1,3 @@
-import os
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt

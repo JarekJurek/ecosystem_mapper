@@ -5,9 +5,6 @@ from PIL import Image
 from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
-import torchvision.transforms as T
-import tifffile as tiff
-import numpy as np
 from .sweco_group_of_variables import sweco_variables_dict
 
 
@@ -188,7 +185,7 @@ class EcosystemDataset(Dataset):
             return None
         try:
             im = Image.open(img_path).convert("RGB")
-        except Exception as e:
+        except Exception as _e:
             # print(f"[ERROR] Failed to load {img_path}: {e}")
             return None
         if self.image_transform:
