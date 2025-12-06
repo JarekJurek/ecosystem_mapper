@@ -4,33 +4,41 @@ import torch
 from typing import Optional
 
 
-class VariablesModel(nn.Module):
-    """
-    Model to classify based on the variables
-    """
-
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout, use_batchnorm):
+class VariablesOnlyModel(nn.Module):
+    def __init__(
+        self,
+        input_dim,
+        hidden_dims,
+        output_dim,
+        dropout,
+        use_batchnorm,
+    ):
         super().__init__()
-        layers = []
-        layers.append(nn.Linear(input_dim, hidden_dim))
-        if use_batchnorm:
-            layers.append(nn.BatchNorm1d(hidden_dim))
-        layers.append(nn.ReLU())
-        layers.append(nn.Dropout(dropout))
 
-        layers.append(nn.Linear(hidden_dim, hidden_dim))
-        if use_batchnorm:
-            layers.append(nn.BatchNorm1d(hidden_dim))
-        layers.append(nn.ReLU())
-        layers.append(nn.Dropout(dropout))
+        if isinstance(hidden_dims, int):
+            hidden_dims = (hidden_dims,)
+        elif isinstance(hidden_dims, list):
+            hidden_dims = tuple(hidden_dims)
+
+        layers = []
+        prev_dim = input_dim
+
+        # build all hidden layers dynamically
+        for h in hidden_dims:
+            layers.append(nn.Linear(prev_dim, h))
+
+            if use_batchnorm:
+                layers.append(nn.BatchNorm1d(h))
+
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout))
+
+            prev_dim = h  # next layer input
 
         self.mlp = nn.Sequential(*layers)
-        self.fc_out = nn.Linear(hidden_dim, output_dim)
+        self.fc_out = nn.Linear(prev_dim, output_dim)
 
-
-    def forward(
-        self, images: Optional[torch.Tensor], variables: Optional[torch.Tensor]
-    ) -> torch.Tensor:
+    def forward(self, images: Optional[torch.Tensor], variables: Optional[torch.Tensor]):
         if variables is None:
             raise ValueError("VariablesOnlyModel requires 'variables' input tensor.")
 
