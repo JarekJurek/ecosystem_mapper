@@ -36,7 +36,11 @@ def load_config():
     parser.add("--weight_decay", type=float, default=5e-4)
     parser.add("--label_smoothing", type=float, default=0.10)
     parser.add("--early_stopping_patience", type=int, default=10)
-    parser.add("--var_hidden", type=int, default=256)
+    parser.add(
+        "--var_hidden",
+        type=lambda s: tuple(int(x) for x in s.split(",")),
+        default=(256,)
+    )
     parser.add("--dropout", type=float, default=0.3)
     parser.add("--num_classes", type=int, default=17)
     parser.add(

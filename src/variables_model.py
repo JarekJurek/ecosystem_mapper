@@ -4,7 +4,7 @@ import torch
 from typing import Optional
 
 
-class VariablesOnlyModel(nn.Module):
+class VariablesModel(nn.Module):
     def __init__(
         self,
         input_dim,
@@ -40,7 +40,7 @@ class VariablesOnlyModel(nn.Module):
 
     def forward(self, images: Optional[torch.Tensor], variables: Optional[torch.Tensor]):
         if variables is None:
-            raise ValueError("VariablesOnlyModel requires 'variables' input tensor.")
+            raise ValueError("VariablesModel requires 'variables' input tensor.")
 
         x = self.mlp(variables)
         logits = self.fc_out(x)

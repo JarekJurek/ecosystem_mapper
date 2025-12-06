@@ -65,6 +65,6 @@ def benchmark_loader(batch_size, num_workers, n_batches=30, load_images=False):
     )
 
 if __name__ == "__main__":
-    for bs in [32, 64, 128, 256]:
-        for nw in [0, 4, 8, 16]:
+    for bs in [512, 1024, 2048]:
+        for nw in [12, 16, 18, 20]:
             benchmark_loader(bs, nw)
