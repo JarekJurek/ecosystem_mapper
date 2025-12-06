@@ -24,7 +24,7 @@ def main():
             "--batch_size", str(batch_size),
             "--dropout", str(dropout),
             "--out_dir", exp_name,
-            "--var_hidden", str(var_hidden),
+            "--var_hidden", str(var_hidden)[1:-1], # remove braces
             "--use_batchnorm", str(use_batchnorm).lower(),
             "--weight_decay", str(weight_decay)
         ]

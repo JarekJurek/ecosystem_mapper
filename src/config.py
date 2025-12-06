@@ -38,7 +38,7 @@ def load_config():
     parser.add("--early_stopping_patience", type=int, default=10)
     parser.add(
         "--var_hidden",
-        type=lambda s: tuple(int(x) for x in s.split(",")),
+        type=lambda s: tuple(int(x) for x in s.split(",") if x.strip()),
         default=(256,)
     )
     parser.add("--dropout", type=float, default=0.3)
