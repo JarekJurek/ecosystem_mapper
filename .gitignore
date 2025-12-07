@@ -3,6 +3,7 @@ results/
 bakery/
 models/
 checkpoints/
+all_results/
 
 *.out
 
