@@ -368,9 +368,11 @@ def main():
     print(f"Saved confusion matrix to {cm_path}")
 
     # ---- Permutation importance computation and plotting ----
-    importances = model.permutation_importance(loaders["test"], n_repeats=30)
+    compute_perm_imp = False
+    if compute_perm_imp:
+        importances = model.permutation_importance(loaders["test"], n_repeats=30)
 
-    plot_permutation_importance(importances, results_dir)
+        plot_permutation_importance(importances, results_dir)
 
 if __name__ == "__main__":
     main()
