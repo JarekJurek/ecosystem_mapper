@@ -1,5 +1,7 @@
 from typing import Dict, List, Tuple
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 from sklearn.metrics import confusion_matrix
@@ -86,4 +88,32 @@ def plot_confusion_matrix(cm: torch.Tensor, class_names: List[str], out_path: st
     plt.ylabel("True")
     plt.tight_layout()
     plt.savefig(out_path, dpi=150)
+    plt.close()
+
+def plot_permutation_importance(importances, out_path: str, top_n: int = 20):
+    """
+    Plot top-N permutation importances using a horizontal bar plot for readability.
+    'importances' should be a DataFrame where columns are variable names
+    and rows are permutation samples.
+    """
+    # Compute mean importance across permutations
+    means = importances.mean(axis=0)
+    stds = importances.std(axis=0)
+
+    # Select top N most important features
+    top_features = means.sort_values(ascending=False).head(top_n)
+    top_stds = stds[top_features.index]
+
+    # Plot
+    plt.figure(figsize=(10, max(6, top_n * 0.4)))
+    plt.barh(top_features.index, top_features.values, xerr=top_stds.values, align="center")
+    plt.gca().invert_yaxis()  # highest importance at top
+    plt.xlabel("Mean decrease in accuracy")
+    plt.title(f"Top {top_n} Permutation Importances")
+    plt.tight_layout()
+
+    out_file = os.path.join(out_path, "permutation_importance_topN.png")
+    plt.savefig(out_file, dpi=200)
+    print(f"Saved permutation importance plot to {out_file}")
+
     plt.close()

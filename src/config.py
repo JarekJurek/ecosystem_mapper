@@ -65,7 +65,7 @@ def load_config():
 
     args.data_dir = resolve_path(args.data_dir)
     args.csv_path = resolve_path(args.csv_path, fallback=args.data_dir / "dataset_split.csv")
-    args.image_dir = resolve_path(args.image_dir, fallback=args.data_dir / "preprocessed_png_256")
+    args.image_dir = resolve_path(args.image_dir, fallback=args.data_dir / "images")
     args.results_dir = f"results/{args.out_dir}"
     args.checkpoints_dir = f"checkpoints/{args.out_dir}"
     ensure_dir(args.results_dir)

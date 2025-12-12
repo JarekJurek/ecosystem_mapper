@@ -1,42 +1,35 @@
-import sys
-from typing import Dict, Any, Optional
-
+import argparse
+from pathlib import Path
 import torch
-from torch import nn
-from torch.optim import Optimizer
-from torch.utils.data import DataLoader
-from torch.amp import autocast, GradScaler
-from tqdm import tqdm
-from utils import save_checkpoint
+import torch.nn as nn
+
+from dataset.dataset import get_dataloaders
+from model import FusionNet
+from metrics_plots import (
+    plot_training_curves,
+    compute_confusion_matrix,
+    plot_confusion_matrix,
+)
 
 
 def train(
-    model: nn.Module,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
-    optimizer: Optimizer,
-    device: torch.device,
-    loss_fn: nn.Module,
+    model,
+    train_loader,
+    val_loader,
+    optimizer,
+    device,
+    loss_fn,
     epochs: int,
-    scheduler: Optional[Any] = None,
+    scheduler=None,
     patience: int = 0,
-    grad_clip: Optional[float] = 1.0,
-) -> Dict[str, list]:
-    """Train loop returning metrics dict for plotting.
-
-    Works on both CPU and GPU, with optional AMP + grad clipping + early stopping.
-    """
-    model.to(device)
-
+):
+    """Train loop returning metrics dict for plotting."""
     metrics = {
         "train_loss": [],
         "val_loss": [],
         "train_acc": [],
         "val_acc": [],
     }
-
-    use_amp = (device.type == "cuda")
-    scaler = GradScaler(enabled=use_amp)
 
     expected_train = len(getattr(train_loader, "dataset", []))
     expected_val = len(getattr(val_loader, "dataset", []))
@@ -45,120 +38,62 @@ def train(
     best_val_loss = float("inf")
     epochs_without_improve = 0
 
-    disable_tqdm = not sys.stdout.isatty()
-
     for epoch in range(1, epochs + 1):
         model.train()
-
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
-
-        if disable_tqdm:
-            batch_iter = train_loader
-        else:
-            batch_iter = tqdm(
-                train_loader,
-                desc=f"Epoch {epoch}/{epochs}",
-                leave=False,
-            )
-
-        for step, batch in enumerate(batch_iter, start=1):
+        for batch in train_loader:
             images = batch.get("images")
             variables = batch.get("variables")
             labels = batch.get("labels")
-
             if labels is None:
                 continue
-
             if images is not None:
-                images = images.to(device, non_blocking=True)
+                images = images.to(device)
             if variables is not None:
-                variables = variables.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
+                variables = variables.to(device)
+            labels = labels.to(device)
+            optimizer.zero_grad()
+            logits = model(images, variables)
+            loss = loss_fn(logits, labels)
+            loss.backward()
 
-            optimizer.zero_grad(set_to_none=True)
+            optimizer.step()
 
-            # Forward + loss (with AMP on CUDA)
-            with autocast(device_type=device.type, enabled=use_amp):
-                logits = model(images, variables)
-                loss = loss_fn(logits, labels)
-
-            # Backward + step with proper AMP handling
-            if use_amp:
-                scaler.scale(loss).backward()
-
-                if grad_clip is not None and grad_clip > 0.0:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                if grad_clip is not None and grad_clip > 0.0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-                optimizer.step()
-
-            # --- Metrics accumulation (always, regardless of tqdm) ---
             batch_size = labels.size(0)
-            total_samples += int(batch_size)
             total_loss += float(loss.item()) * batch_size
-
             preds = logits.argmax(dim=1)
             total_correct += int((preds == labels).sum().item())
+            total_samples += int(batch_size)
 
-            if not disable_tqdm:
-                current_loss = total_loss / max(total_samples, 1)
-                current_acc = total_correct / max(total_samples, 1)
-                batch_iter.set_postfix(
-                    loss=f"{current_loss:.4f}",
-                    acc=f"{current_acc:.3f}",
-                )
         train_loss = total_loss / max(total_samples, 1)
         train_acc = total_correct / max(total_samples, 1)
-
-        # --- Validation ---
         val_loss, val_acc = evaluate(model, val_loader, device, loss_fn)
-
         metrics["train_loss"].append(train_loss)
         metrics["val_loss"].append(val_loss)
         metrics["train_acc"].append(train_acc)
         metrics["val_acc"].append(val_acc)
 
         if scheduler is not None:
-            if hasattr(scheduler, "step") and "metrics" in scheduler.step.__code__.co_varnames:
-                scheduler.step(val_loss)
-            else:
-                scheduler.step()
+            scheduler.step()
 
-        if patience:
-            if val_loss < best_val_loss - 1e-6:
-                best_val_loss = val_loss
-                epochs_without_improve = 0
-                save_checkpoint(
-                    model,
-                    optimizer,
-                    epoch,
-                    name="best_checkpoint.pth",
-                    extra={"val_loss": val_loss, "val_acc": val_acc},
+        # Early stopping based on validation loss
+        if patience and val_loss < best_val_loss - 1e-6:
+            best_val_loss = val_loss
+            epochs_without_improve = 0
+        elif patience:
+            epochs_without_improve += 1
+            if epochs_without_improve >= patience:
+                print(
+                    f"Early stopping at epoch {epoch} "
+                    f"(no val loss improve for {patience} epochs)"
                 )
-            else:
-                epochs_without_improve += 1
-                if epochs_without_improve >= patience:
-                    print(
-                        f"Early stopping at epoch {epoch} "
-                        f"(no val loss improve for {patience} epochs)"
-                    )
-                    break
-
+                break
         print(
-            f"Epoch {epoch:02d} | "
-            f"train loss {train_loss:.4f} acc {train_acc:.3f} | "
-            f"val loss {val_loss:.4f} acc {val_acc:.3f}"
+            f"Epoch {epoch:02d} | train loss {train_loss:.4f} acc {train_acc:.3f} | val loss {val_loss:.4f} acc {val_acc:.3f}"
         )
     return metrics
-
 
 
 def evaluate(model, loader, device, loss_fn):
@@ -188,3 +123,104 @@ def evaluate(model, loader, device, loss_fn):
     avg_loss = total_loss / max(total_samples, 1)
     acc = total_correct / max(total_samples, 1)
     return avg_loss, acc
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train Fusion model")
+    parser.add_argument(
+        "--variable-selection",
+        dest="variable_selection",
+        nargs="*",
+        default=["all"],
+        help="Variable selection: 'all', a group key, or multiple keys (e.g., geol edaph)",
+    )
+    parser.add_argument(
+        "--out-dir",
+        dest="out_dir",
+        default="new_exp",
+        help="Output directory for results",
+    )
+    args = parser.parse_args()
+
+    data_dir = Path(__file__).parents[1].resolve() / "data"
+    csv_path = data_dir / "dataset_split.csv"
+    image_dir = data_dir / "images"
+    variable_selection = args.variable_selection
+
+    ### Hyperparams ###
+    batch_size = 32
+    num_workers = 6
+    epochs = 30
+    lr = 1e-3
+    early_stopping_patience = 7
+    var_hidden = 256
+    dropout = 0.3
+    num_classes = 17
+    load_images = True
+
+    loaders = get_dataloaders(
+        csv_path=csv_path,
+        image_dir=image_dir,
+        variable_selection=variable_selection,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        load_images=load_images,
+    )
+
+    sample_batch = next(iter(loaders["train"]))
+    var_tensor = sample_batch.get("variables")
+    var_input_dim = var_tensor.shape[1] if var_tensor is not None else None
+    if load_images:
+        sample_images = sample_batch.get("images")
+        if sample_images is None:
+            raise RuntimeError("No images found in the first training batch.")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = FusionNet(num_classes=num_classes, var_input_dim=var_input_dim, var_hidden_dim=var_hidden, dropout=dropout).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    loss_fn = nn.CrossEntropyLoss()
+
+    metrics = train(
+        model,
+        loaders["train"],
+        loaders["val"],
+        optimizer,
+        device,
+        loss_fn,
+        epochs,
+        scheduler=scheduler,
+        patience=early_stopping_patience,
+    )
+
+    test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
+    print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
+
+    results_dir = Path("results") / args.out_dir
+    results_dir.mkdir(parents=True, exist_ok=True)
+    model_path = results_dir / "fusion_model.pth"
+    torch.save(model.state_dict(), model_path)
+    print(f"Saved model to {model_path}")
+
+    print("Training parameters:")
+    print(f"  Variable selection: {variable_selection}")
+    print(f"  Batch size: {batch_size}")
+    print(f"  Learning rate: {lr}")
+    print(f"  Epochs: {epochs}")
+    print(f"  Variable hidden dim: {var_hidden}")
+    print(f"  Dropout: {dropout}")
+
+    # Plotting and confusion matrix generation
+    curves_path = results_dir / "training_curves.png"
+    plot_training_curves(metrics, curves_path)
+    print(f"Saved training curves to {curves_path}")
+
+    cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
+    cm_path = results_dir / "confusion_matrix.png"
+    plot_confusion_matrix(cm_tensor, class_names, cm_path)
+    print(f"Saved confusion matrix to {cm_path}")
+
+
+if __name__ == "__main__":
+    main()
+    
