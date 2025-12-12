@@ -8,6 +8,7 @@ from metrics_plots import (
     plot_confusion_matrix,
 )
 from model import FusionNet
+from attention_mlp import FusionNetCBAM
 from variables_model import VariablesModel
 from dataset.dataset import get_dataloaders
 from utils import get_best_device, save_checkpoint, load_checkpoint, track_experiment
@@ -141,12 +142,24 @@ def efficientnet_experiment():
         return loaders
 
     def build_model_and_optimizer(device, var_input_dim):
-        model = FusionNet(
-            num_classes=cfg.num_classes,
-            var_input_dim=var_input_dim,
-            var_hidden_dim=cfg.var_hidden,
-            dropout=cfg.dropout,
-        ).to(device)
+        print("Using attention:", cfg.use_attention)
+
+        if cfg.use_attention:
+            model = FusionNetCBAM(
+                num_classes=cfg.num_classes,
+                var_input_dim=var_input_dim,
+                var_hidden_dim=cfg.var_hidden,
+                dropout=cfg.dropout,
+            ).to(device)
+        else:
+            model = FusionNet(
+                num_classes=cfg.num_classes,
+                var_input_dim=var_input_dim,
+                var_hidden_dim=cfg.var_hidden,
+                dropout=cfg.dropout,
+            ).to(device)
+
+        print(model)
 
         # Backbone partial fine-tuning
         for name, p in model.backbone.named_parameters():
@@ -174,7 +187,8 @@ def efficientnet_experiment():
 
         return model, optimizer
 
-    run_experiment(build_loaders, build_model_and_optimizer, exp_name="efficientnet")
+    run_experiment(build_loaders, build_model_and_optimizer, 
+                   exp_name = "efficientnet_cbam" if cfg.use_attention else "efficientnet")
 
 
 def mlp_experiment():

@@ -16,6 +16,13 @@ def load_config():
         help="Path to config file (YAML/INI).",
     )
 
+    parser.add(
+        "--use_attention",
+        type=lambda x: str(x).lower() in {"1", "true", "yes", "y"},
+        default=False,
+        help="Enable CBAM attention in the image backbone",
+    )
+
     parser.add("--data_dir", type=str, default="data")
     parser.add("--csv_path", type=str, default=None)
     parser.add("--image_dir", type=str, default=None)
