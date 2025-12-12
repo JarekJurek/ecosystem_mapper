@@ -1,4 +1,3 @@
-import os
 from typing import Dict, List, Tuple
 
 import matplotlib
@@ -118,7 +117,3 @@ def plot_permutation_importance(importances, out_path: str, top_n: int = 20):
     print(f"Saved permutation importance plot to {out_file}")
 
     plt.close()
-
-
-def ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)

@@ -57,7 +57,7 @@ class RandomForestEcosystem(nn.Module):
         max_features: Optional[int] = 'log2',
         bootstrap: Optional[bool] = False
     ) -> None:
-        
+
         super().__init__()
         self.num_classes = num_classes
         self.var_input_dim = var_input_dim
@@ -238,7 +238,7 @@ class RandomForestEcosystem(nn.Module):
         # Convert back to torch.Tensor on the same device as variables
         logits = torch.from_numpy(logits_np).to(variables.device)
         return logits
-    
+
 def evaluate(model, loader, device, loss_fn):
     """
     Generic evaluation loop:
@@ -277,7 +277,7 @@ def evaluate(model, loader, device, loss_fn):
     acc = total_correct / max(total_samples, 1)
     return avg_loss, acc
 
-    
+
 def main():
     parser = argparse.ArgumentParser(description="RandomForest baseline on SWECO variables")
     parser.add_argument(
@@ -336,7 +336,7 @@ def main():
         max_depth = 20,
         bootstrap = False
     )
-    
+
     # ---- Train RF on train loader ----
     model.fit_from_loader(loaders["train"])
 

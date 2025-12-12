@@ -1,7 +1,10 @@
 import os
 from typing import List, Optional, Sequence, Dict, Any, Union, cast
-
 import pandas as pd
+from PIL import Image
+from pathlib import Path
+import torch
+from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -153,10 +156,11 @@ class EcosystemDataset(Dataset):
             if np.issubdtype(img.dtype, np.floating) and img.max() > 1.0:
                 img = img / 255.0
 
-            tensor = torch.from_numpy(img).to(torch.float32).permute(2, 0, 1)
 
             if self.image_transform is not None:
-                tensor = self.image_transform(tensor)
+                tensor = self.image_transform(img)
+            else:
+                tensor = torch.from_numpy(np.array(img)).to(torch.float32)
 
             return tensor
 
@@ -203,12 +207,14 @@ def default_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     - Keeps ids and label_names as lists.
     """
     ids = [b["id"] for b in batch]
-
     images = [b.get("image") for b in batch]
     if any(img is not None for img in images):
-        images_t = torch.stack(
-            [img if img is not None else torch.zeros_like(images[0]) for img in images]
-        )
+        ref_img = next(img for img in images if img is not None)
+        padded_imgs = [
+            img if img is not None else torch.zeros_like(ref_img)
+            for img in images
+        ]
+        images_t = torch.stack(padded_imgs)
     else:
         images_t = None
 
@@ -258,7 +264,8 @@ def get_dataloaders(
     variable_selection: Optional[Union[str, Sequence[str]]] = "all",
     batch_size: int = 32,
     num_workers: int = 4,
-    image_transform: Optional[Any] = None,
+    train_image_transform: Optional[Any] = None,
+    eval_image_transform: Optional[Any] = None,
     load_images: bool = True,
     return_label: bool = True,
     collate_fn=default_collate,
@@ -271,6 +278,11 @@ def get_dataloaders(
     csv_str = str(csv_path)
     img_str = str(image_dir) if image_dir is not None else None
     for split in ["train", "val", "test"]:
+        if split == "train":
+            tfm = train_image_transform
+        else:
+            tfm = eval_image_transform
+
         ds = EcosystemDataset.from_split(
             subset=split,
             csv_path=csv_str,
@@ -278,7 +290,7 @@ def get_dataloaders(
             image_ext=image_ext,
             load_images=load_images,
             variable_selection=variable_selection,
-            image_transform=image_transform,
+            image_transform=tfm,
             return_label=return_label,
         )
         # Print counts per split: number of images and variables
@@ -300,5 +312,7 @@ def get_dataloaders(
             shuffle=(split == "train"),
             num_workers=num_workers,
             collate_fn=collate_fn,
+            persistent_workers=True if num_workers > 0 else None,
+            prefetch_factor=2 if num_workers > 0 else None,
         )
     return loaders

@@ -1,4 +1,3 @@
-import os
 import argparse
 from pathlib import Path
 import torch
@@ -10,7 +9,6 @@ from metrics_plots import (
     plot_training_curves,
     compute_confusion_matrix,
     plot_confusion_matrix,
-    ensure_dir,
 )
 
 
@@ -36,7 +34,7 @@ def train(
     expected_train = len(getattr(train_loader, "dataset", []))
     expected_val = len(getattr(val_loader, "dataset", []))
     print(f"Dataset sizes | train: {expected_train} | val: {expected_val}")
-        
+
     best_val_loss = float("inf")
     epochs_without_improve = 0
 
@@ -146,7 +144,7 @@ def main():
 
     data_dir = Path(__file__).parents[1].resolve() / "data"
     csv_path = data_dir / "dataset_split.csv"
-    image_dir = data_dir
+    image_dir = data_dir / "images"
     variable_selection = args.variable_selection
 
     ### Hyperparams ###
@@ -197,13 +195,13 @@ def main():
 
     test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
     print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
-    
+
     results_dir = Path("results") / args.out_dir
     results_dir.mkdir(parents=True, exist_ok=True)
     model_path = results_dir / "fusion_model.pth"
     torch.save(model.state_dict(), model_path)
     print(f"Saved model to {model_path}")
-    
+
     print("Training parameters:")
     print(f"  Variable selection: {variable_selection}")
     print(f"  Batch size: {batch_size}")
@@ -216,7 +214,7 @@ def main():
     curves_path = results_dir / "training_curves.png"
     plot_training_curves(metrics, curves_path)
     print(f"Saved training curves to {curves_path}")
-    
+
     cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
     cm_path = results_dir / "confusion_matrix.png"
     plot_confusion_matrix(cm_tensor, class_names, cm_path)
