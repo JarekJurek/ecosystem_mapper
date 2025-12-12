@@ -64,7 +64,6 @@ def run_experiment(build_loaders_fn, build_model_and_optimizer_fn, exp_name: str
             cfg.epochs,
             scheduler=scheduler,
             patience=cfg.early_stopping_patience,
-            grad_clip=cfg.grad_clip,
         )
     except KeyboardInterrupt:
         print("\n[INTERRUPTED] Training stopped by user. Saving checkpoint...")
@@ -110,6 +109,7 @@ def efficientnet_experiment():
 
         train_transform = T.Compose(
             [
+                T.ToPILImage(),
                 T.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
                 T.RandomHorizontalFlip(),
                 T.RandomVerticalFlip(),
@@ -126,7 +126,7 @@ def efficientnet_experiment():
         )
 
         loaders = get_dataloaders(
-            image_ext=".png",
+            image_ext=".tif",
             csv_path=cfg.csv_path,
             image_dir=cfg.image_dir,
             variable_selection=cfg.variable_selection,

@@ -56,14 +56,17 @@ def load_image(path: Path) -> np.ndarray:
     img = imread(path)
     # Handle channel-first images (common in remote sensing)
     if img.ndim == 3 and img.shape[0] < img.shape[2]:
+        print(f'Moving channels to last dimension for image {path.name}')
         img = np.moveaxis(img, 0, -1)
 
     # Use only the first 3 channels for RGB
     if img.ndim == 3 and img.shape[2] > 3:
+        print(f'Image {path.name} has {img.shape[2]} channels; using first 3 for RGB display.')
         img = img[..., :3]
 
     # Normalize float data to [0, 1] if it exceeds 1.0 (likely 0-255 range)
     if np.issubdtype(img.dtype, np.floating) and img.max() > 1.0:
+        print('Normalizing image data from [0, 255] to [0, 1]')
         img = img / 255.0
 
     return img

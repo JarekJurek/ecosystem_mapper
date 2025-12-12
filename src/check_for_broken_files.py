@@ -5,7 +5,7 @@ from PIL import Image
 
 bad_files = []
 
-root = "./data/preprocessed_png_256"
+root = "./data/images"
 check_for_tiff = False
 
 for fname in os.listdir(root):

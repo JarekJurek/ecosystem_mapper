@@ -5,6 +5,12 @@ from PIL import Image
 from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
+from pathlib import Path
+import torch
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+from skimage.io import imread
+
 from .sweco_group_of_variables import sweco_variables_dict
 
 
@@ -130,69 +136,37 @@ class EcosystemDataset(Dataset):
     def __len__(self) -> int:
         return len(self.df)
 
-    # def _load_tif(self, path_or_bytes):
-    #     try:
-    #         arr = tiff.imread(path_or_bytes)
-    #     except Exception as e:
-    #         print(f"[ERROR] Failed to read TIFF {path_or_bytes}: {e}")
-    #         raise
-
-    #     # Debug print (do this once to inspect, then you can remove or gate by a flag)
-    #     # print(f"[DEBUG] TIFF {path_or_bytes} shape: {arr.shape}, dtype: {arr.dtype}")
-
-    #     # Handle typical satellite / multi-band TIFF patterns
-    #     if arr.ndim == 2:
-    #         # H, W -> make it 3-channel
-    #         arr = np.stack([arr] * 3, axis=-1)
-
-    #     elif arr.ndim == 3:
-    #         # Could be (C, H, W) or (H, W, C)
-    #         if arr.shape[0] in (3, 4) and arr.shape[1] > 4 and arr.shape[2] > 4:
-    #             # interpret as C, H, W
-    #             arr = np.moveaxis(arr, 0, -1)  # -> H, W, C
-
-    #         # Now we expect H, W, C
-    #         if arr.shape[-1] > 3:
-    #             arr = arr[..., :3]
-
-    #     else:
-    #         raise ValueError(
-    #             f"Unsupported TIFF shape {arr.shape} for file {path_or_bytes}. "
-    #             "Expected 2D (H, W) or 3D (H, W, C) / (C, H, W)."
-    #         )
-
-    #     # Now normalize to uint8
-    #     arr = arr.astype(np.float32)
-    #     arr_min = arr.min()
-    #     arr_max = arr.max()
-
-    #     if arr_max > arr_min:
-    #         arr = (arr - arr_min) / (arr_max - arr_min)
-    #     else:
-    #         arr = np.zeros_like(arr, dtype=np.float32)
-
-    #     arr = (arr * 255).astype(np.uint8)
-
-    #     return Image.fromarray(arr)
-
     def _load_image(self, sample_id: str) -> Optional[torch.Tensor]:
         if not self.load_images:
             return None
         dir_path = cast(str, self.image_dir)
         img_path = os.path.join(dir_path, f"{sample_id}{self.image_ext}")
         if not os.path.exists(img_path):
-            # print(f"[WARN] image not found {img_path}")
+            print(f"Image file not found: {img_path}")
             return None
         try:
-            im = Image.open(img_path).convert("RGB")
-        except Exception as _e:
-            # print(f"[ERROR] Failed to load {img_path}: {e}")
+            img = imread(img_path)
+            if not isinstance(img, np.ndarray) or img.size == 0 or img.ndim < 2:
+                raise ValueError("Invalid or empty image array")
+            if np.all(np.isnan(img)):
+                raise ValueError("Image contains only NaNs")
+            if np.nanmax(img) == 0:
+                raise ValueError("Image is all zeros")
+
+            if np.issubdtype(img.dtype, np.floating) and img.max() > 1.0:
+                img = img / 255.0
+
+
+            if self.image_transform is not None:
+                tensor = self.image_transform(img)
+            else:
+                tensor = torch.from_numpy(np.array(img)).to(torch.float32)
+
+            return tensor
+
+        except Exception as exc:
+            print(f"Failed to read/prepare image {img_path}: {exc}")
             return None
-        if self.image_transform:
-            im = self.image_transform(im)
-
-        return im
-
 
     def _load_variables(self, row: pd.Series) -> Optional[torch.Tensor]:
         if not self.var_cols:
@@ -210,10 +184,14 @@ class EcosystemDataset(Dataset):
         img = self._load_image(sample_id)
         if img is not None:
             item["image"] = img
+        else:
+            print(f"Image not loaded for id: {sample_id}")
 
         vars_t = self._load_variables(row)
         if vars_t is not None:
             item["variables"] = vars_t
+        else:
+            print(f"Variables not loaded for id: {sample_id}")
 
         if self.return_label:
             item["label"] = int(row["EUNIS_cls"])  # integer class for training
@@ -315,6 +293,19 @@ def get_dataloaders(
             image_transform=tfm,
             return_label=return_label,
         )
+        # Print counts per split: number of images and variables
+        var_count = len(ds.var_cols)
+        img_count = 0
+        if load_images and img_str is not None:
+            try:
+                for i in range(len(ds)):
+                    sid = str(ds.df.iloc[i]["id"]) if "id" in ds.df.columns else str(i)
+                    img_path = os.path.join(img_str, f"{sid}{image_ext}")
+                    if os.path.exists(img_path):
+                        img_count += 1
+            except Exception:
+                pass
+        print(f"Split '{split}': images={img_count}, variables={var_count}, samples={len(ds)}")
         loaders[split] = DataLoader(
             ds,
             batch_size=batch_size,
