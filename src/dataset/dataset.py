@@ -314,5 +314,6 @@ def get_dataloaders(
             collate_fn=collate_fn,
             persistent_workers=True if num_workers > 0 else None,
             prefetch_factor=2 if num_workers > 0 else None,
+            pin_memory=True,
         )
     return loaders

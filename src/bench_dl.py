@@ -3,7 +3,7 @@ from pathlib import Path
 from dataset.dataset import get_dataloaders
 import torchvision.transforms as T
 
-def benchmark_loader(batch_size, num_workers, n_batches=30):
+def benchmark_loader(batch_size, num_workers, n_batches=30, load_images=False):
     data_dir = Path(__file__).parents[1].resolve() / "data"
     csv_path = data_dir / "dataset_split.csv"
     image_dir = data_dir / "preprocessed_png_256"
@@ -42,7 +42,7 @@ def benchmark_loader(batch_size, num_workers, n_batches=30):
         num_workers=num_workers,
         train_image_transform=train_transform,
         eval_image_transform=eval_transform,
-        load_images=True,
+        load_images=load_images,
     )
 
     train_loader = loaders["train"]
@@ -65,6 +65,6 @@ def benchmark_loader(batch_size, num_workers, n_batches=30):
     )
 
 if __name__ == "__main__":
-    for bs in [8, 16, 32]:
-        for nw in [0, 1, 2]:
+    for bs in [512, 1024, 2048]:
+        for nw in [12, 16, 18, 20]:
             benchmark_loader(bs, nw)

@@ -1,8 +1,8 @@
-from experiments import efficientnet_experiment
+from experiments import mlp_experiment
 
 
 def main():
-    efficientnet_experiment()
+    mlp_experiment()
 
 
 if __name__ == "__main__":

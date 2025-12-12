@@ -1,6 +1,7 @@
 from pathlib import Path
 import configargparse
 import os
+from typing import Optional
 
 def load_config():
     parser = configargparse.ArgParser(
@@ -18,6 +19,9 @@ def load_config():
     parser.add("--data_dir", type=str, default="data")
     parser.add("--csv_path", type=str, default=None)
     parser.add("--image_dir", type=str, default=None)
+    parser.add("--load_checkpoint",type=lambda x: str(x).lower() in {"1", "true", "yes", "y"}, default=True)
+    parser.add("--save_checkpoint",type=lambda x: str(x).lower() in {"1", "true", "yes", "y"}, default=True)
+    parser.add("--use_batchnorm",type=lambda x: str(x).lower() in {"1", "true", "yes", "y"}, default=True)
     parser.add(
         "--variable_selection",
         action="append",
@@ -32,7 +36,11 @@ def load_config():
     parser.add("--weight_decay", type=float, default=5e-4)
     parser.add("--label_smoothing", type=float, default=0.10)
     parser.add("--early_stopping_patience", type=int, default=10)
-    parser.add("--var_hidden", type=int, default=256)
+    parser.add(
+        "--var_hidden",
+        type=lambda s: tuple(int(x) for x in s.split(",") if x.strip()),
+        default=(256,)
+    )
     parser.add("--dropout", type=float, default=0.3)
     parser.add("--num_classes", type=int, default=17)
     parser.add(
@@ -41,7 +49,6 @@ def load_config():
         default=True,
     )
     parser.add("--grad_clip", type=float, default=1.0)
-
     args = parser.parse_args()
 
     if args.config is not None:
@@ -49,7 +56,7 @@ def load_config():
     else:
         config_dir = Path(__file__).parents[1].resolve()
 
-    def resolve_path(p: str | None, fallback: Path = None) -> Path:
+    def resolve_path(p: Optional[str], fallback: Path = None) -> Path:
         """Resolve a path relative to config file directory if not absolute."""
         if p is None:
             return fallback
@@ -62,7 +69,8 @@ def load_config():
     args.results_dir = f"results/{args.out_dir}"
     args.checkpoints_dir = f"checkpoints/{args.out_dir}"
     ensure_dir(args.results_dir)
-    ensure_dir(args.checkpoints_dir)
+    if args.save_checkpoint:
+        ensure_dir(args.checkpoints_dir)
     return args
 
 def ensure_dir(path: str) -> None:
