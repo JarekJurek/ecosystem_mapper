@@ -28,6 +28,7 @@ def benchmark_loader(batch_size, num_workers, n_batches=30, load_images=False):
     ])
 
     eval_transform = T.Compose([
+        T.ToPILImage(),
         T.Resize((img_size, img_size)),
         T.ToTensor(),
         T.Normalize(mean=eff_mean, std=eff_std),

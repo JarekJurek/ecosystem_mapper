@@ -284,6 +284,7 @@ def build_default_transforms(img_size: int = 224):
     std  = [0.229, 0.224, 0.225]
 
     eval_transform = T.Compose([
+        T.ToPILImage(),
         T.Resize((img_size, img_size)),
         T.ToTensor(),
         T.Normalize(mean=mean, std=std),
