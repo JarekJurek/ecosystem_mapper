@@ -9,15 +9,13 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import RandomizedSearchCV
-from scipy.stats import uniform
-
+from config import ensure_dir
 from dataset.dataset import get_dataloaders
 from metrics_plots import (
     plot_training_curves,
     compute_confusion_matrix,
     plot_confusion_matrix,
     plot_permutation_importance,
-    ensure_dir,
 )
 
 class RandomForestEcosystem(nn.Module):
