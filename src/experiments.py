@@ -13,6 +13,8 @@ from dataset.dataset import get_dataloaders
 from utils import get_best_device, save_checkpoint, load_checkpoint, track_experiment
 from config import config as cfg
 from train_fusion import train, evaluate
+from image_backbones import FusionNetBackbone
+
 
 def run_experiment(build_loaders_fn, build_model_and_optimizer_fn, exp_name: str):
     """
@@ -215,3 +217,168 @@ def mlp_experiment():
         return model, optimizer
 
     run_experiment(build_loaders, build_model_and_optimizer, exp_name="mlp")
+
+
+def set_trainable_params(model: FusionNetBackbone, backbone_name: str, mode: str):
+    """
+    mode:
+      - "head_only": freeze entire backbone
+      - "last_stage": unfreeze last stage/block + head
+    """
+    bb = model.backbone
+    backbone_name = backbone_name.lower()
+
+    # Default: freeze all
+    for _, p in bb.named_parameters():
+        p.requires_grad = False
+
+    if mode == "head_only":
+        return
+
+    if mode != "last_stage":
+        raise ValueError(f"Unknown mode: {mode}")
+
+    # Unfreeze last stage depending on architecture
+    if backbone_name.startswith("resnet"):
+        # layer4 is last stage
+        for name, p in bb.named_parameters():
+            if "layer4" in name:
+                p.requires_grad = True
+
+    elif backbone_name.startswith("efficientnet"):
+        # torchvision efficientnet has bb.features.[0..7] typically (b0)
+        for name, p in bb.named_parameters():
+            if "features.6" in name or "features.7" in name:
+                p.requires_grad = True
+
+    elif backbone_name.startswith("convnext"):
+        # last stage is stages.3 in torchvision convnext
+        for name, p in bb.named_parameters():
+            if "stages.3" in name:
+                p.requires_grad = True
+
+    elif backbone_name.startswith("densenet"):
+        # DenseNet doesn't have clean "stage names" like resnet; simplest:
+        # unfreeze last denseblock + norm5
+        for name, p in bb.named_parameters():
+            if "features.denseblock4" in name or "features.norm5" in name:
+                p.requires_grad = True
+
+    elif backbone_name.startswith("mobilenet_v3"):
+        # unfreeze last few feature blocks
+        for name, p in bb.named_parameters():
+            if "features.12" in name or "features.13" in name or "features.14" in name:
+                p.requires_grad = True
+
+    elif backbone_name.startswith("vit"):
+        # unfreeze last transformer blocks + final norm
+        for name, p in bb.named_parameters():
+            if "encoder.layers.10" in name or "encoder.layers.11" in name or "encoder.ln" in name:
+                p.requires_grad = True
+    else:
+        pass
+
+
+def build_default_transforms(img_size: int = 224):
+    mean = [0.485, 0.456, 0.406]
+    std  = [0.229, 0.224, 0.225]
+
+    eval_transform = T.Compose([
+        T.Resize((img_size, img_size)),
+        T.ToTensor(),
+        T.Normalize(mean=mean, std=std),
+    ])
+
+    train_transform = T.Compose([
+        T.ToPILImage(),
+        T.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+        T.RandomHorizontalFlip(),
+        T.RandomVerticalFlip(),
+        T.RandomRotation(degrees=90),
+        T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
+        T.ToTensor(),
+        T.Normalize(mean=mean, std=std),
+    ])
+
+    return train_transform, eval_transform
+
+
+def make_backbone_experiment(backbone_name: str, finetune_mode: str = "last_stage"):
+    """
+    Returns a callable experiment function you can run, e.g.
+    exp = make_backbone_experiment("resnet50", "head_only")
+    exp()
+    """
+
+    def build_loaders():
+        train_tf, eval_tf = build_default_transforms(img_size=224)
+
+        return get_dataloaders(
+            image_ext=".tif",
+            csv_path=cfg.csv_path,
+            image_dir=cfg.image_dir,
+            variable_selection=cfg.variable_selection,
+            batch_size=cfg.batch_size,
+            num_workers=cfg.num_workers,
+            load_images=True,
+            train_image_transform=train_tf,
+            eval_image_transform=eval_tf,
+        )
+
+    def build_model_and_optimizer(device, var_input_dim):
+        model = FusionNetBackbone(
+            backbone_name=backbone_name,
+            num_classes=cfg.num_classes,
+            dropout=cfg.dropout,
+        ).to(device)
+
+        set_trainable_params(model, backbone_name, mode=finetune_mode)
+
+        backbone_params = [
+            p for n, p in model.named_parameters()
+            if n.startswith("backbone") and p.requires_grad
+        ]
+        head_params = [
+            p for n, p in model.named_parameters()
+            if not n.startswith("backbone")
+        ]
+
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": backbone_params, "lr": cfg.lr * 0.05},
+                {"params": head_params, "lr": cfg.lr},
+            ],
+            weight_decay=cfg.weight_decay,
+        )
+        return model, optimizer
+
+    exp_name = f"{backbone_name}_{finetune_mode}"
+    run_experiment(build_loaders, build_model_and_optimizer, exp_name=exp_name)
+
+    return None
+
+
+def backbone_sweep(
+    backbones=None,
+    finetune_mode: str = "last_stage",
+):
+    """
+    Runs a sweep across multiple backbones.
+    Uses your existing track_experiment() inside run_experiment.
+    """
+    if backbones is None:
+        backbones = [
+            "resnet18",
+            "resnet50",
+            "efficientnet_b0",
+            "mobilenet_v3_large",
+            "densenet121",
+            "convnext_tiny",
+            "vit_b_16",
+        ]
+
+    for bb in backbones:
+        print("\n" + "=" * 80)
+        print(f"Running backbone sweep: {bb} | finetune_mode={finetune_mode}")
+        print("=" * 80)
+        make_backbone_experiment(bb, finetune_mode=finetune_mode)

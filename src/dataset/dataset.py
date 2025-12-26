@@ -190,7 +190,7 @@ class EcosystemDataset(Dataset):
         vars_t = self._load_variables(row)
         if vars_t is not None:
             item["variables"] = vars_t
-        else:
+        elif self.var_cols:
             print(f"Variables not loaded for id: {sample_id}")
 
         if self.return_label:

@@ -1,8 +1,8 @@
-from experiments import mlp_experiment
+from experiments import backbone_sweep
 
 
 def main():
-    mlp_experiment()
+    backbone_sweep(finetune_mode="head_only")
 
 
 if __name__ == "__main__":
