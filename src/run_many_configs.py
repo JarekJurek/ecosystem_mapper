@@ -4,11 +4,11 @@ from pathlib import Path
 
 BASE_CONFIG = "src/configs/default.yaml"
 
-LR_LIST = [0.003, 0.0005, 0.0008, 0.002, 0.005]
-BATCH_SIZES = [16, 128, 256]
-DROPOUTS = [0.0, 0.1, 0.3]
-NUM_HIDDEN = [(2048,),(128, 128), (256, 128), (256, 256), (512, 256), (512, 512), (1024, 512), (1024, 1024), (256, 256, 128), (512, 256, 128), (1024, 512, 256), (1024, 512, 512)]
-WEIGTH_DECAY = [0]
+LR_LIST = [0.002, 0.003, 0.004, 0.005]
+BATCH_SIZES = [128, 256]
+DROPOUTS = [0.0, 0.15, 0.3]
+NUM_HIDDEN = [(256, 128), (256, 256),  (1024, 512), (256, 256, 128)]
+WEIGTH_DECAY = [0, 1e-4, 5e-5, 1e-5]
 BATCH_NORMS = [True]
 
 def main():
