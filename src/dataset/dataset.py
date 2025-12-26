@@ -184,7 +184,7 @@ class EcosystemDataset(Dataset):
         img = self._load_image(sample_id)
         if img is not None:
             item["image"] = img
-        else:
+        elif self.load_images:
             print(f"Image not loaded for id: {sample_id}")
 
         vars_t = self._load_variables(row)

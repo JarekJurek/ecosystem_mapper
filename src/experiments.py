@@ -184,7 +184,7 @@ def mlp_experiment():
 
     def build_loaders():
         loaders = get_dataloaders(
-            image_ext=".png",
+            image_ext=".tif",
             csv_path=cfg.csv_path,
             image_dir=cfg.image_dir,
             variable_selection=cfg.variable_selection,
