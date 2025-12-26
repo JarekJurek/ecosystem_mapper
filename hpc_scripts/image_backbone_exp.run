@@ -13,4 +13,4 @@
 cd "$SLURM_SUBMIT_DIR"
 module load gcc python
 source ~/ecosystem_mapper/venv/bin/activate
-python3 -u src/main.py
+python3 -u src/main.py --config src/configs/image_backbone_exp.yaml
