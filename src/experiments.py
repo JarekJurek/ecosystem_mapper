@@ -264,12 +264,6 @@ def set_trainable_params(model: FusionNetBackbone, backbone_name: str, mode: str
             if "features.denseblock4" in name or "features.norm5" in name:
                 p.requires_grad = True
 
-    elif backbone_name.startswith("mobilenet_v3"):
-        # unfreeze last few feature blocks
-        for name, p in bb.named_parameters():
-            if "features.12" in name or "features.13" in name or "features.14" in name:
-                p.requires_grad = True
-
     elif backbone_name.startswith("vit"):
         # unfreeze last transformer blocks + final norm
         for name, p in bb.named_parameters():
@@ -372,7 +366,6 @@ def backbone_sweep(
             "resnet18",
             "resnet50",
             "efficientnet_b0",
-            "mobilenet_v3_large",
             "densenet121",
             "convnext_tiny",
             "vit_b_16",

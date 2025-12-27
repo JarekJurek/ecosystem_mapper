@@ -31,12 +31,6 @@ def build_backbone(name: str) -> Tuple[nn.Module, int]:
         bb.classifier = nn.Identity()
         return bb, feat_dim
 
-    if name == "mobilenet_v3_large":
-        bb = models.mobilenet_v3_large(weights=models.MobileNet_V3_Large_Weights.DEFAULT)
-        feat_dim = bb.classifier[-1].in_features
-        bb.classifier = nn.Identity()
-        return bb, feat_dim
-
     if name == "convnext_tiny":
         bb = models.convnext_tiny(weights=models.ConvNeXt_Tiny_Weights.DEFAULT)
         feat_dim = bb.classifier[-1].in_features
