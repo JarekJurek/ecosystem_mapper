@@ -152,6 +152,7 @@ def main():
     num_workers = 6
     epochs = 30
     lr = 1e-3
+    weight_decay = 1e-4
     early_stopping_patience = 7
     var_hidden = 256
     dropout = 0.3
@@ -177,7 +178,7 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = FusionNet(num_classes=num_classes, var_input_dim=var_input_dim, var_hidden_dim=var_hidden, dropout=dropout).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     loss_fn = nn.CrossEntropyLoss()
 
@@ -210,6 +211,7 @@ def main():
     print(f"  Variable selection: {variable_selection}")
     print(f"  Batch size: {batch_size}")
     print(f"  Learning rate: {lr}")
+    print(f"  Weight decay: {weight_decay}")
     print(f"  Epochs: {epochs}")
     print(f"  Variable hidden dim: {var_hidden}")
     print(f"  Dropout: {dropout}")
