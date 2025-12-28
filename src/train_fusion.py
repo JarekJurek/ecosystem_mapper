@@ -193,8 +193,12 @@ def main():
         patience=early_stopping_patience,
     )
 
+    if metrics.get("val_acc"):
+        best_val_acc = max(metrics["val_acc"])
+        print(f"Best val accuracy: {best_val_acc:.3f}")
+
     test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
-    print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
+    print(f"Test set | loss {test_loss:.4f} acc {test_acc:.3f}")
 
     results_dir = Path("results") / args.out_dir
     results_dir.mkdir(parents=True, exist_ok=True)
