@@ -9,8 +9,13 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import RandomizedSearchCV
+<<<<<<< Updated upstream:code/random_forest.py
 from scipy.stats import uniform
 
+=======
+from sklearn.metrics import f1_score
+from config import ensure_dir
+>>>>>>> Stashed changes:src/random_forest.py
 from dataset.dataset import get_dataloaders
 from metrics_plots import (
     plot_training_curves,
@@ -238,18 +243,26 @@ class RandomForestEcosystem(nn.Module):
         # Convert back to torch.Tensor on the same device as variables
         logits = torch.from_numpy(logits_np).to(variables.device)
         return logits
+<<<<<<< Updated upstream:code/random_forest.py
     
 def evaluate(model, loader, device, loss_fn):
+=======
+
+def evaluate(model, loader, device, loss_fn, return_f1: bool = True):
+>>>>>>> Stashed changes:src/random_forest.py
     """
     Generic evaluation loop:
-    - calls model(images, variables) → logits
-    - computes loss and accuracy
-    Works for both FusionNet and RandomForestEcosystem.
+    - computes loss, accuracy
+    - optionally computes macro F1-score
     """
     model.eval()
     total_loss = 0.0
     total_correct = 0
     total_samples = 0
+
+    all_preds = []
+    all_labels = []
+
     with torch.no_grad():
         for batch in loader:
             images = batch.get("images")
@@ -267,17 +280,34 @@ def evaluate(model, loader, device, loss_fn):
             logits = model(images, variables)
             loss = loss_fn(logits, labels)
 
+            preds = logits.argmax(dim=1)
+
             batch_size = labels.size(0)
             total_loss += float(loss.item()) * batch_size
-            preds = logits.argmax(dim=1)
             total_correct += int((preds == labels).sum().item())
             total_samples += int(batch_size)
 
+            if return_f1:
+                all_preds.append(preds.cpu())
+                all_labels.append(labels.cpu())
+
     avg_loss = total_loss / max(total_samples, 1)
     acc = total_correct / max(total_samples, 1)
+
+    if return_f1:
+        y_true = torch.cat(all_labels).numpy()
+        y_pred = torch.cat(all_preds).numpy()
+        f1 = f1_score(y_true, y_pred, average="macro")
+        return avg_loss, acc, f1
+
     return avg_loss, acc
 
+<<<<<<< Updated upstream:code/random_forest.py
     
+=======
+
+
+>>>>>>> Stashed changes:src/random_forest.py
 def main():
     parser = argparse.ArgumentParser(description="RandomForest baseline on SWECO variables")
     parser.add_argument(
@@ -350,13 +380,19 @@ def main():
     # ---- Evaluate on train / val / test ----
     loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
-    train_loss, train_acc = evaluate(model, loaders["train"], device, loss_fn)
-    val_loss, val_acc = evaluate(model, loaders["val"], device, loss_fn)
-    test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
+    train_loss, train_acc, train_f1 = evaluate(
+        model, loaders["train"], device, loss_fn
+    )
+    val_loss, val_acc, val_f1 = evaluate(
+        model, loaders["val"], device, loss_fn
+    )
+    test_loss, test_acc, test_f1 = evaluate(
+        model, loaders["test"], device, loss_fn
+    )
 
-    print(f"Train | loss {train_loss:.4f} acc {train_acc:.3f}")
-    print(f"Val   | loss {val_loss:.4f} acc {val_acc:.3f}")
-    print(f"Test  | loss {test_loss:.4f} acc {test_acc:.3f}")
+    print(f"Train | loss {train_loss:.4f} acc {train_acc:.3f} f1 {train_f1:.3f}")
+    print(f"Val   | loss {val_loss:.4f} acc {val_acc:.3f} f1 {val_f1:.3f}")
+    print(f"Test  | loss {test_loss:.4f} acc {test_acc:.3f} f1 {test_f1:.3f}")
 
     # Save results to csv
     results_dir = f"results/{args.out_dir}"
@@ -373,6 +409,8 @@ def main():
         "val_loss": [val_loss],
         "train_acc": [train_acc],
         "val_acc": [val_acc],
+        "train_f1": [train_f1],
+        "val_f1": [val_f1],
     }
 
     # Plotting and confusion matrix generation
