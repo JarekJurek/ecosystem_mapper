@@ -9,13 +9,9 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import RandomizedSearchCV
-<<<<<<< Updated upstream:code/random_forest.py
 from scipy.stats import uniform
-
-=======
 from sklearn.metrics import f1_score
 from config import ensure_dir
->>>>>>> Stashed changes:src/random_forest.py
 from dataset.dataset import get_dataloaders
 from metrics_plots import (
     plot_training_curves,
@@ -62,7 +58,7 @@ class RandomForestEcosystem(nn.Module):
         max_features: Optional[int] = 'log2',
         bootstrap: Optional[bool] = False
     ) -> None:
-        
+
         super().__init__()
         self.num_classes = num_classes
         self.var_input_dim = var_input_dim
@@ -243,13 +239,8 @@ class RandomForestEcosystem(nn.Module):
         # Convert back to torch.Tensor on the same device as variables
         logits = torch.from_numpy(logits_np).to(variables.device)
         return logits
-<<<<<<< Updated upstream:code/random_forest.py
     
-def evaluate(model, loader, device, loss_fn):
-=======
-
 def evaluate(model, loader, device, loss_fn, return_f1: bool = True):
->>>>>>> Stashed changes:src/random_forest.py
     """
     Generic evaluation loop:
     - computes loss, accuracy
@@ -302,12 +293,6 @@ def evaluate(model, loader, device, loss_fn, return_f1: bool = True):
 
     return avg_loss, acc
 
-<<<<<<< Updated upstream:code/random_forest.py
-    
-=======
-
-
->>>>>>> Stashed changes:src/random_forest.py
 def main():
     parser = argparse.ArgumentParser(description="RandomForest baseline on SWECO variables")
     parser.add_argument(
@@ -366,7 +351,7 @@ def main():
         max_depth = 20,
         bootstrap = False
     )
-    
+
     # ---- Train RF on train loader ----
     model.fit_from_loader(loaders["train"])
 

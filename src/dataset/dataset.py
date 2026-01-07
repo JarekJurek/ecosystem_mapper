@@ -1,17 +1,15 @@
 import os
 from typing import List, Optional, Sequence, Dict, Any, Union, cast
-
 import pandas as pd
 from PIL import Image
-from pyparsing import Path
+from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
-
-# Optional: torchvision transforms are commonly used for ResNet backbones
-try:
-    import torchvision.transforms as T
-except Exception:
-    T = None
+from pathlib import Path
+import torch
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+from skimage.io import imread
 
 from .sweco_group_of_variables import sweco_variables_dict
 
@@ -110,14 +108,6 @@ class EcosystemDataset(Dataset):
         if self.load_images and not self.image_dir:
             raise ValueError("image_dir must be provided when load_images=True")
 
-        # Default transform if none provided and torchvision available
-        if self.load_images and self.image_transform is None and T is not None:
-            # Simple ResNet-friendly defaults
-            self.image_transform = T.Compose(
-                [
-                    T.ToTensor(),
-                ]
-            )
 
     @classmethod
     def from_split(
@@ -152,13 +142,31 @@ class EcosystemDataset(Dataset):
         dir_path = cast(str, self.image_dir)
         img_path = os.path.join(dir_path, f"{sample_id}{self.image_ext}")
         if not os.path.exists(img_path):
-            # Gracefully return None if missing
+            print(f"Image file not found: {img_path}")
             return None
-        with Image.open(img_path) as im:
-            im = im.convert("RGB")
-            if self.image_transform:
-                im = self.image_transform(im)
-            return im
+        try:
+            img = imread(img_path)
+            if not isinstance(img, np.ndarray) or img.size == 0 or img.ndim < 2:
+                raise ValueError("Invalid or empty image array")
+            if np.all(np.isnan(img)):
+                raise ValueError("Image contains only NaNs")
+            if np.nanmax(img) == 0:
+                raise ValueError("Image is all zeros")
+
+            if np.issubdtype(img.dtype, np.floating) and img.max() > 1.0:
+                img = img / 255.0
+
+
+            if self.image_transform is not None:
+                tensor = self.image_transform(img)
+            else:
+                tensor = torch.from_numpy(np.array(img)).to(torch.float32)
+
+            return tensor
+
+        except Exception as exc:
+            print(f"Failed to read/prepare image {img_path}: {exc}")
+            return None
 
     def _load_variables(self, row: pd.Series) -> Optional[torch.Tensor]:
         if not self.var_cols:
@@ -176,10 +184,14 @@ class EcosystemDataset(Dataset):
         img = self._load_image(sample_id)
         if img is not None:
             item["image"] = img
+        else:
+            print(f"Image not loaded for id: {sample_id}")
 
         vars_t = self._load_variables(row)
         if vars_t is not None:
             item["variables"] = vars_t
+        else:
+            print(f"Variables not loaded for id: {sample_id}")
 
         if self.return_label:
             item["label"] = int(row["EUNIS_cls"])  # integer class for training
@@ -195,12 +207,14 @@ def default_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     - Keeps ids and label_names as lists.
     """
     ids = [b["id"] for b in batch]
-
     images = [b.get("image") for b in batch]
     if any(img is not None for img in images):
-        images_t = torch.stack(
-            [img if img is not None else torch.zeros_like(images[0]) for img in images]
-        )
+        ref_img = next(img for img in images if img is not None)
+        padded_imgs = [
+            img if img is not None else torch.zeros_like(ref_img)
+            for img in images
+        ]
+        images_t = torch.stack(padded_imgs)
     else:
         images_t = None
 
@@ -250,7 +264,8 @@ def get_dataloaders(
     variable_selection: Optional[Union[str, Sequence[str]]] = "all",
     batch_size: int = 32,
     num_workers: int = 4,
-    image_transform: Optional[Any] = None,
+    train_image_transform: Optional[Any] = None,
+    eval_image_transform: Optional[Any] = None,
     load_images: bool = True,
     return_label: bool = True,
     collate_fn=default_collate,
@@ -263,6 +278,11 @@ def get_dataloaders(
     csv_str = str(csv_path)
     img_str = str(image_dir) if image_dir is not None else None
     for split in ["train", "val", "test"]:
+        if split == "train":
+            tfm = train_image_transform
+        else:
+            tfm = eval_image_transform
+
         ds = EcosystemDataset.from_split(
             subset=split,
             csv_path=csv_str,
@@ -270,14 +290,30 @@ def get_dataloaders(
             image_ext=image_ext,
             load_images=load_images,
             variable_selection=variable_selection,
-            image_transform=image_transform,
+            image_transform=tfm,
             return_label=return_label,
         )
+        # Print counts per split: number of images and variables
+        var_count = len(ds.var_cols)
+        img_count = 0
+        if load_images and img_str is not None:
+            try:
+                for i in range(len(ds)):
+                    sid = str(ds.df.iloc[i]["id"]) if "id" in ds.df.columns else str(i)
+                    img_path = os.path.join(img_str, f"{sid}{image_ext}")
+                    if os.path.exists(img_path):
+                        img_count += 1
+            except Exception:
+                pass
+        print(f"Split '{split}': images={img_count}, variables={var_count}, samples={len(ds)}")
         loaders[split] = DataLoader(
             ds,
             batch_size=batch_size,
             shuffle=(split == "train"),
             num_workers=num_workers,
             collate_fn=collate_fn,
+            persistent_workers=True if num_workers > 0 else None,
+            prefetch_factor=2 if num_workers > 0 else None,
+            pin_memory=True,
         )
     return loaders

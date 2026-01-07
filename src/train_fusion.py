@@ -1,4 +1,3 @@
-import os
 import argparse
 from pathlib import Path
 import torch
@@ -10,7 +9,6 @@ from metrics_plots import (
     plot_training_curves,
     compute_confusion_matrix,
     plot_confusion_matrix,
-    ensure_dir,
 )
 
 
@@ -24,7 +22,6 @@ def train(
     epochs: int,
     scheduler=None,
     patience: int = 0,
-    grad_clip: float = 1.0,
 ):
     """Train loop returning metrics dict for plotting."""
     metrics = {
@@ -37,7 +34,7 @@ def train(
     expected_train = len(getattr(train_loader, "dataset", []))
     expected_val = len(getattr(val_loader, "dataset", []))
     print(f"Dataset sizes | train: {expected_train} | val: {expected_val}")
-        
+
     best_val_loss = float("inf")
     epochs_without_improve = 0
 
@@ -61,9 +58,6 @@ def train(
             logits = model(images, variables)
             loss = loss_fn(logits, labels)
             loss.backward()
-
-            if grad_clip is not None and grad_clip > 0.0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
 
             optimizer.step()
 
@@ -158,14 +152,12 @@ def main():
     num_workers = 6
     epochs = 30
     lr = 1e-3
-    weight_decay = 5e-4
-    label_smoothing = 0.10
-    early_stopping_patience = 10
+    weight_decay = 1e-4
+    early_stopping_patience = 7
     var_hidden = 256
     dropout = 0.3
     num_classes = 17
     load_images = True
-    grad_clip = 1.0
 
     loaders = get_dataloaders(
         csv_path=csv_path,
@@ -179,43 +171,16 @@ def main():
     sample_batch = next(iter(loaders["train"]))
     var_tensor = sample_batch.get("variables")
     var_input_dim = var_tensor.shape[1] if var_tensor is not None else None
-    print(f"Variables used for this run: {variable_selection}")
+    if load_images:
+        sample_images = sample_batch.get("images")
+        if sample_images is None:
+            raise RuntimeError("No images found in the first training batch.")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = FusionNet(
-        num_classes=num_classes,
-        var_input_dim=var_input_dim,
-        var_hidden_dim=var_hidden,
-        dropout=dropout,
-    ).to(device)
-
-    ### Backbone partial fine-tuning ###
-    for name, p in model.backbone.named_parameters():
-        if "features.6" in name or "features.7" in name:
-            p.requires_grad = True
-        else:
-            p.requires_grad = False
-
-    backbone_params = [
-        p
-        for n, p in model.named_parameters()
-        if n.startswith("backbone") and p.requires_grad
-    ]
-    head_params = [
-        p for n, p in model.named_parameters() if not n.startswith("backbone")
-    ]
-
-    optimizer = torch.optim.AdamW(
-        [
-            {"params": backbone_params, "lr": lr * 0.1},
-            {"params": head_params, "lr": lr},
-        ],
-        weight_decay=weight_decay,
-    )
-
+    model = FusionNet(num_classes=num_classes, var_input_dim=var_input_dim, var_hidden_dim=var_hidden, dropout=dropout).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-
-    loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    loss_fn = nn.CrossEntropyLoss()
 
     metrics = train(
         model,
@@ -227,24 +192,41 @@ def main():
         epochs,
         scheduler=scheduler,
         patience=early_stopping_patience,
-        grad_clip=grad_clip,
     )
 
+    if metrics.get("val_acc"):
+        best_val_acc = max(metrics["val_acc"])
+        print(f"Best val accuracy: {best_val_acc:.3f}")
+
     test_loss, test_acc = evaluate(model, loaders["test"], device, loss_fn)
-    print(f"Test | loss {test_loss:.4f} acc {test_acc:.3f}")
+    print(f"Test set | loss {test_loss:.4f} acc {test_acc:.3f}")
+
+    results_dir = Path("results") / args.out_dir
+    results_dir.mkdir(parents=True, exist_ok=True)
+    model_path = results_dir / "fusion_model.pth"
+    torch.save(model.state_dict(), model_path)
+    print(f"Saved model to {model_path}")
+
+    print("Training parameters:")
+    print(f"  Variable selection: {variable_selection}")
+    print(f"  Batch size: {batch_size}")
+    print(f"  Learning rate: {lr}")
+    print(f"  Weight decay: {weight_decay}")
+    print(f"  Epochs: {epochs}")
+    print(f"  Variable hidden dim: {var_hidden}")
+    print(f"  Dropout: {dropout}")
 
     # Plotting and confusion matrix generation
-    results_dir = f"results/{args.out_dir}"
-    ensure_dir(results_dir)
-    curves_path = os.path.join(results_dir, "training_curves.png")
+    curves_path = results_dir / "training_curves.png"
     plot_training_curves(metrics, curves_path)
     print(f"Saved training curves to {curves_path}")
 
     cm_tensor, class_names = compute_confusion_matrix(model, loaders["val"], device)
-    cm_path = os.path.join(results_dir, "confusion_matrix.png")
+    cm_path = results_dir / "confusion_matrix.png"
     plot_confusion_matrix(cm_tensor, class_names, cm_path)
     print(f"Saved confusion matrix to {cm_path}")
 
 
 if __name__ == "__main__":
     main()
+    
