@@ -176,26 +176,27 @@ class EcosystemDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         row = self.df.iloc[idx]
-        sample_id = str(row["id"])  # id used to find image
+        sample_id = str(row["id"])
 
-        item: Dict[str, Any] = {
-            "id": sample_id,
-        }
-        img = self._load_image(sample_id)
-        if img is not None:
-            item["image"] = img
-        else:
-            print(f"Image not loaded for id: {sample_id}")
+        item: Dict[str, Any] = {"id": sample_id}
 
-        vars_t = self._load_variables(row)
-        if vars_t is not None:
-            item["variables"] = vars_t
-        else:
-            print(f"Variables not loaded for id: {sample_id}")
+        # Only try to load images if enabled
+        if self.load_images:
+            img = self._load_image(sample_id)
+            if img is not None:
+                item["image"] = img
+            # else: stay silent (missing image is expected sometimes)
+
+        # Only try to load variables if requested
+        if self.var_cols:
+            vars_t = self._load_variables(row)
+            if vars_t is not None:
+                item["variables"] = vars_t
+            # else: stay silent (should be rare)
 
         if self.return_label:
-            item["label"] = int(row["EUNIS_cls"])  # integer class for training
-            item["label_name"] = str(row["EUNIS_label"])  # human-readable
+            item["label"] = int(row["EUNIS_cls"])
+            item["label_name"] = str(row["EUNIS_label"])
 
         return item
 
