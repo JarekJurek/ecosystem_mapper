@@ -70,6 +70,10 @@ class SklearnEcosystemModel(nn.Module):
             perm.importances[idx].T,
             columns=[var_names[i] for i in idx],
         )
+    
+# -----------------------------
+# Build models
+# -----------------------------
 
 def build_random_forest(var_input_dim, num_classes):
     rf = RandomForestClassifier(
@@ -95,6 +99,10 @@ def build_gradient_boosting(var_input_dim, num_classes):
         random_state=42,
     )
     return SklearnEcosystemModel(gb, num_classes, var_input_dim)
+
+# -----------------------------
+# Optimize models
+# -----------------------------
 
 def optimize_random_forest(estimator, X, y):
     param_dist = {
@@ -142,6 +150,10 @@ def optimize_gradient_boosting(estimator, X, y):
     search.fit(X, y)
     print(f"[HGB] Best params: {search.best_params_}")
     return search.best_estimator_
+
+# -----------------------------
+# Evaluate models
+# -----------------------------
 
 def evaluate(model, loader, device, loss_fn):
     total_loss, total_correct, total_samples = 0.0, 0, 0
