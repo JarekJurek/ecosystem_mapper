@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import torch
 import torch.nn as nn
+import torchvision.transforms as T
 
 from dataset.dataset import get_dataloaders
 from model import FusionNet
@@ -144,20 +145,36 @@ def main():
 
     data_dir = Path(__file__).parents[1].resolve() / "data"
     csv_path = data_dir / "dataset_split.csv"
-    image_dir = data_dir / "images"
+    image_dir = data_dir 
     variable_selection = args.variable_selection
 
     ### Hyperparams ###
     batch_size = 32
-    num_workers = 6
+    num_workers = 5
     epochs = 30
     lr = 1e-3
     weight_decay = 1e-4
+    label_smoothing = 0.1
     early_stopping_patience = 7
     var_hidden = 256
-    dropout = 0.3
+    dropout = 0.5
     num_classes = 17
     load_images = True
+
+    # Image transforms: stronger augmentation for train, identity-ish for eval
+    if load_images:
+        train_image_transform = T.Compose(
+            [
+                T.ToTensor(),
+                T.RandomHorizontalFlip(p=0.5),
+                T.RandomVerticalFlip(p=0.5),
+                T.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02),
+            ]
+        )
+        eval_image_transform = T.Compose([T.ToTensor()])
+    else:
+        train_image_transform = None
+        eval_image_transform = None
 
     loaders = get_dataloaders(
         csv_path=csv_path,
@@ -166,6 +183,8 @@ def main():
         batch_size=batch_size,
         num_workers=num_workers,
         load_images=load_images,
+        train_image_transform=train_image_transform,
+        eval_image_transform=eval_image_transform,
     )
 
     sample_batch = next(iter(loaders["train"]))
@@ -180,7 +199,7 @@ def main():
     model = FusionNet(num_classes=num_classes, var_input_dim=var_input_dim, var_hidden_dim=var_hidden, dropout=dropout).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
     metrics = train(
         model,
@@ -212,6 +231,7 @@ def main():
     print(f"  Batch size: {batch_size}")
     print(f"  Learning rate: {lr}")
     print(f"  Weight decay: {weight_decay}")
+    print(f"  Label smoothing: {label_smoothing}")
     print(f"  Epochs: {epochs}")
     print(f"  Variable hidden dim: {var_hidden}")
     print(f"  Dropout: {dropout}")

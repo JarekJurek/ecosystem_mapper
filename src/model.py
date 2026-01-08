@@ -36,6 +36,11 @@ class FusionNet(nn.Module):
         if self.vars_enabled:
             self.vars_mlp = nn.Sequential(
                 nn.Linear(var_input_dim, var_hidden_dim),
+                nn.BatchNorm1d(var_hidden_dim),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+                nn.Linear(var_hidden_dim, var_hidden_dim),
+                nn.BatchNorm1d(var_hidden_dim),
                 nn.ReLU(inplace=True),
                 nn.Dropout(dropout),
                 nn.Linear(var_hidden_dim, img_feat_dim),

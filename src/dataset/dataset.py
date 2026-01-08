@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from skimage.io import imread
+from torchvision.transforms import functional as F
 
 from .sweco_group_of_variables import sweco_variables_dict
 
@@ -160,7 +161,7 @@ class EcosystemDataset(Dataset):
             if self.image_transform is not None:
                 tensor = self.image_transform(img)
             else:
-                tensor = torch.from_numpy(np.array(img)).to(torch.float32)
+                tensor = F.to_tensor(img)
 
             return tensor
 
