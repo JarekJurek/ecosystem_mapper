@@ -1,0 +1,20 @@
+name: environment
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - jupyterlab
+  - ipykernel
+  - pip:
+      - matplotlib
+      - scikit-image
+      - numpy
+      - pandas
+      - Pillow
+      - torch
+      - torchvision
+      - scikit-learn
+      - tqdm
+      - configargparse
+      - PyYAML
